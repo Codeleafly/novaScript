@@ -9,6 +9,11 @@ export function createSysModule(version: string) {
     sysProps.set("platform", MK_STRING(os.platform()));
     sysProps.set("arch", MK_STRING(os.arch()));
     sysProps.set("version", MK_STRING(version));
+    sysProps.set("env", MK_NATIVE_FN((args) => {
+        const key = (args[0] as any).value;
+        const val = process.env[key];
+        return val !== undefined ? MK_STRING(val) : MK_NULL();
+    }));
     sysProps.set("uptime", MK_NATIVE_FN(() => MK_NUMBER(os.uptime())));
     sysProps.set("hostname", MK_NATIVE_FN(() => MK_STRING(os.hostname())));
     sysProps.set("totalmem", MK_NATIVE_FN(() => MK_NUMBER(os.totalmem())));

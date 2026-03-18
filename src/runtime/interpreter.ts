@@ -2,7 +2,7 @@
 // src/runtime/interpreter.ts
 
 import { NumberVal, RuntimeVal, MK_NULL, MK_NUMBER, MK_BOOL, StringVal, MK_STRING, ObjectVal, FunctionVal, NativeFnVal, ArrayVal, MK_ARRAY, BooleanVal, NullVal, MK_OBJECT } from "./values";
-import { BinaryExpr, Identifier, NodeType, NumericLiteral, Program, Statement, VarDeclaration, AssignmentExpr, ObjectLiteral, CallExpr, FunctionDeclaration, StringLiteral, IfStatement, WhileStatement, ReturnStatement, ArrayLiteral, MemberExpr, ForStatement, ImportStatement, ImportExpr } from "../frontend/ast";
+import { BinaryExpr, Identifier, NodeType, NumericLiteral, Program, Statement, VarDeclaration, AssignmentExpr, ObjectLiteral, CallExpr, FunctionDeclaration, StringLiteral, IfStatement, WhileStatement, ReturnStatement, ArrayLiteral, MemberExpr, ForStatement, ImportStatement, ImportExpr, GlobalDeclaration } from "../frontend/ast";
 import * as fs from "fs";
 import * as path from "path";
 import Parser from "../frontend/parser";
@@ -69,6 +69,9 @@ export function evaluate(astNode: Statement, env: Environment): RuntimeVal {
     case "VarDeclaration":
       return eval_var_declaration(astNode as VarDeclaration, env);
     
+    case "GlobalDeclaration":
+      return eval_global_declaration(astNode as GlobalDeclaration, env);
+    
     case "FunctionDeclaration":
       return eval_function_declaration(astNode as FunctionDeclaration, env);
       
@@ -124,6 +127,20 @@ function eval_var_declaration(
   }
 }
 
+function eval_global_declaration(
+  declaration: GlobalDeclaration,
+  env: Environment
+): RuntimeVal {
+  const value = declaration.value
+    ? evaluate(declaration.value, env)
+    : MK_NULL();
+  try {
+      return env.declareGlobal(declaration.identifier, value, declaration.constant);
+  } catch (e: any) {
+      throw new NovaRuntimeError(e.message, getLocation(declaration));
+  }
+}
+
 function eval_function_declaration(
   declaration: FunctionDeclaration,
   env: Environment
@@ -136,7 +153,7 @@ function eval_function_declaration(
     body: declaration.body,
   } as FunctionVal;
 
-  return env.declareVar(declaration.name, fn, true); 
+  return env.declareVar(declaration.name, fn, true);
 }
 
 function eval_identifier(
@@ -223,12 +240,17 @@ function eval_member_expr(
     const object = evaluate(expr.object, env);
     
     let property = "";
+    let numericIndex = -1;
+
     if (expr.computed) {
         const propVal = evaluate(expr.property, env);
-        if (propVal.type !== "string") {
-            throw new NovaTypeError("Computed property key must be a string", getLocation(expr));
+        if (propVal.type === "number") {
+            numericIndex = (propVal as NumberVal).value;
+        } else if (propVal.type === "string") {
+            property = (propVal as StringVal).value;
+        } else {
+            throw new NovaTypeError("Computed property key must be a string or number", getLocation(expr));
         }
-        property = (propVal as StringVal).value;
     } else {
         if (expr.property.kind !== "Identifier") {
             throw new NovaTypeError("Dot notation requires identifier", getLocation(expr));
@@ -236,21 +258,26 @@ function eval_member_expr(
         property = (expr.property as Identifier).symbol;
     }
 
+    if (object.type === "array") {
+        const arr = (object as ArrayVal).elements;
+        if (numericIndex >= 0) {
+            return arr[numericIndex] || MK_NULL();
+        }
+        if (property === "length") return MK_NUMBER(arr.length);
+        throw new NovaTypeError(`Array does not have property ${property}`, getLocation(expr));
+    }
+
     if (object.type === "string") {
         if (property === "length") return MK_NUMBER((object as StringVal).value.length);
         throw new NovaTypeError(`String does not have property ${property}`, getLocation(expr));
-    }
-
-    if (object.type === "array") {
-        if (property === "length") return MK_NUMBER((object as ArrayVal).elements.length);
-        throw new NovaTypeError(`Array does not have property ${property}`, getLocation(expr));
     }
     
     if (object.type !== "object") {
         throw new NovaTypeError("Cannot access property of non-object. Found: " + object.type, getLocation(expr));
     }
     
-    const val = (object as ObjectVal).properties.get(property);
+    const key = numericIndex >= 0 ? String(numericIndex) : property;
+    const val = (object as ObjectVal).properties.get(key);
     if (val === undefined) {
         return MK_NULL();
     }
@@ -271,7 +298,7 @@ function eval_call_expr(
 
   if (fn.type == "function") {
     const func = fn as FunctionVal;
-    const scope = new Environment(func.declarationEnv);
+    const scope = new Environment(func.declarationEnv, "function"); // function scope
 
     for (let i = 0; i < func.parameters.length; i++) {
       const varname = func.parameters[i];
@@ -388,14 +415,14 @@ function eval_if_statement(
     const condition = evaluate(stmt.condition, env);
     
     if ((condition as BooleanVal).value === true) {
-        const scope = new Environment(env);
+        const scope = new Environment(env, "block");
         let lastVal: RuntimeVal = MK_NULL();
         for (const s of stmt.thenBranch) {
             lastVal = evaluate(s, scope);
         }
         return lastVal;
     } else if (stmt.elseBranch) {
-        const scope = new Environment(env);
+        const scope = new Environment(env, "block");
         let lastVal: RuntimeVal = MK_NULL();
         for (const s of stmt.elseBranch) {
             lastVal = evaluate(s, scope);
@@ -416,8 +443,7 @@ function eval_while_statement(
         if (condition.type !== "boolean" || (condition as BooleanVal).value !== true) {
             break;
         }
-        
-        const scope = new Environment(env);
+        const scope = new Environment(env, "block");
         for (const s of stmt.body) {
             lastVal = evaluate(s, scope);
         }
@@ -446,7 +472,7 @@ function eval_for_statement(
     const end = (endVal as NumberVal).value;
     
     while (current <= end) {
-        const iterationScope = new Environment(scope);
+        const iterationScope = new Environment(scope, "block");
         for (const s of stmt.body) {
             lastVal = evaluate(s, iterationScope);
         }

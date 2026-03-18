@@ -3,7 +3,7 @@
 print("--- Module Include Tests ---")
 
 # Include the library file
-include("tests/09_lib.nv")
+let myMod = include("tests/09_lib.nv")
 
 print("Accessing lib_name from module:", myMod.lib_name)
 let res = myMod.lib_multiply(5, 5)

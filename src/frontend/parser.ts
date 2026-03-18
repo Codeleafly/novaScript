@@ -5,7 +5,8 @@ import {
     Statement, Program, Expression, BinaryExpr, NumericLiteral, Identifier, 
     VarDeclaration, AssignmentExpr, CallExpr, FunctionDeclaration, IfStatement, 
     WhileStatement, MemberExpr, ObjectLiteral, Property, StringLiteral, 
-    ReturnStatement, ArrayLiteral, ForStatement, ImportStatement, ImportExpr, NodeType
+    ReturnStatement, ArrayLiteral, ForStatement, ImportStatement, ImportExpr, NodeType,
+    GlobalDeclaration
 } from "./ast";
 import { tokenize, Token, TokenType } from "./lexer";
 import { NovaSyntaxError, ErrorLocation } from "../runtime/errors";
@@ -55,14 +56,28 @@ export default class Parser {
       kind: "Program",
       body: [],
       line: 1,
-      column: 1
+      column: 1,
+      file: filename
     };
 
     while (this.not_eof()) {
       program.body.push(this.parse_statement());
     }
 
+    this.attach_file(program);
     return program;
+  }
+
+  private attach_file(node: any) {
+      if (!node || typeof node !== "object") return;
+      if (node.kind && !node.file) node.file = this.filename;
+      for (const key in node) {
+          if (Array.isArray(node[key])) {
+              for (const child of node[key]) this.attach_file(child);
+          } else if (typeof node[key] === "object") {
+              this.attach_file(node[key]);
+          }
+      }
   }
 
   private parse_statement(): Statement {
@@ -70,6 +85,8 @@ export default class Parser {
       case TokenType.Let:
       case TokenType.Const:
         return this.parse_var_declaration();
+      case TokenType.Global:
+        return this.parse_global_declaration();
       case TokenType.Fn:
         return this.parse_function_declaration();
       case TokenType.If:
@@ -83,8 +100,6 @@ export default class Parser {
       case TokenType.OpenBrace:
           return this.parse_block();
       default:
-        // `include` is now parsed as a primary expression,
-        // so if it's a statement, it will be parsed as an expression statement.
         return this.parse_expression();
     }
   }
@@ -107,9 +122,10 @@ export default class Parser {
 
   private parse_while_statement(): Statement {
       const whileToken = this.eat();
-      this.expect(TokenType.OpenParen, "Expected ( after while");
+      const hasParen = this.at().type === TokenType.OpenParen;
+      if (hasParen) this.eat();
       const condition = this.parse_expression();
-      this.expect(TokenType.CloseParen, "Expected ) after condition");
+      if (hasParen) this.expect(TokenType.CloseParen, "Expected ) after condition");
       const bodyNode = this.parse_statement();
       const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
       return { kind: "WhileStatement", condition, body, line: whileToken.line, column: whileToken.column } as WhileStatement;
@@ -117,13 +133,14 @@ export default class Parser {
 
   private parse_for_statement(): Statement {
       const forToken = this.eat();
-      this.expect(TokenType.OpenParen, "Expected ( after for");
+      const hasParen = this.at().type === TokenType.OpenParen;
+      if (hasParen) this.eat();
       const identifier = this.expect(TokenType.Identifier, "Expected identifier in for loop").value;
       this.expect(TokenType.From, "Expected 'from' in for loop");
       const start = this.parse_expression();
       this.expect(TokenType.To, "Expected 'to' in for loop");
       const end = this.parse_expression();
-      this.expect(TokenType.CloseParen, "Expected ) after for range");
+      if (hasParen) this.expect(TokenType.CloseParen, "Expected ) after for range");
       const bodyNode = this.parse_statement();
       const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
       return { kind: "ForStatement", counter: identifier, start, end, body, line: forToken.line, column: forToken.column } as ForStatement;
@@ -158,6 +175,18 @@ export default class Parser {
       const bodyNode = this.parse_statement();
       const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
       return { kind: "FunctionDeclaration", name, parameters: args, body, line: fnToken.line, column: fnToken.column } as FunctionDeclaration;
+  }
+
+  private parse_global_declaration(): Statement {
+    const tk = this.eat(); // consume 'global'
+    const isConstant = false; // global const uses 'const global' — for now always mutable
+    const identifier = this.expect(TokenType.Identifier, "Expected identifier name after 'global'.").value;
+    if (this.at().type === TokenType.Assign) {
+      this.eat();
+      const value = this.parse_expression();
+      return { kind: "GlobalDeclaration", constant: isConstant, identifier, value, line: tk.line, column: tk.column } as GlobalDeclaration;
+    }
+    return { kind: "GlobalDeclaration", constant: false, identifier, value: undefined, line: tk.line, column: tk.column } as GlobalDeclaration;
   }
 
   private parse_var_declaration(): Statement {
@@ -302,13 +331,24 @@ export default class Parser {
 
   private parse_member_expr(): Expression {
       let object = this.parse_primary_expr();
-      while (this.at().type === TokenType.Dot) {
-          const dotToken = this.eat();
-          const property = this.parse_primary_expr();
-           if (property.kind !== "Identifier") {
-              throw new NovaSyntaxError("Cannot use dot operator without identifier.", this.getLocation(this.at()));
+      while (this.at().type === TokenType.Dot || this.at().type === TokenType.OpenBracket) {
+          const operator = this.eat();
+          let property: Expression;
+          let computed: boolean;
+
+          if (operator.type === TokenType.Dot) {
+              computed = false;
+              property = this.parse_primary_expr();
+              if (property.kind !== "Identifier") {
+                  throw new NovaSyntaxError("Cannot use dot operator without identifier.", this.getLocation(this.at()));
+              }
+          } else {
+              computed = true;
+              property = this.parse_expression();
+              this.expect(TokenType.CloseBracket, "Missing closing bracket in computed property.");
           }
-          object = { kind: "MemberExpr", object, property, computed: false, line: dotToken.line, column: dotToken.column } as MemberExpr;
+
+          object = { kind: "MemberExpr", object, property, computed, line: operator.line, column: operator.column } as MemberExpr;
       }
       return object;
   }

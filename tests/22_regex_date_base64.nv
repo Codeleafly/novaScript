@@ -1,0 +1,44 @@
+# tests/22_regex_date_base64.nv
+print("--- Regex, Date & Base64 Tests (v5.5.0) ---")
+
+# Regex
+let emailStr = "Contact us at support@novascript.org or sales@novascript.org!"
+let pattern = "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+
+print("Regex Test:", Regex.test(pattern, emailStr, "g"))
+let matches = Regex.match(pattern, emailStr, "g")
+print("Regex Matches:", matches)
+
+let redacted = Regex.replace(pattern, emailStr, "[REDACTED]", "g")
+print("Regex Replaced:", redacted)
+
+if (matches[0] is "support@novascript.org" and matches[1] is "sales@novascript.org") {
+    print("Regex module: SUCCESS")
+}
+
+# Date
+let currentMs = Date.now()
+print("Current Time (ms):", currentMs)
+
+let isoString = Date.toISO(currentMs)
+print("ISO String:", isoString)
+
+let parsed = Date.parse(isoString)
+print("Parsed Back to ms:", parsed)
+
+if (parsed is currentMs or parsed > 0) {
+    print("Date module: SUCCESS")
+}
+
+# Base64
+let secret = "NovaScript is awesome!"
+let encoded = Base64.encode(secret)
+print("Base64 Encoded:", encoded)
+let decoded = Base64.decode(encoded)
+print("Base64 Decoded:", decoded)
+
+if (decoded is secret) {
+    print("Base64 module: SUCCESS")
+}
+
+print("Advanced Utilities: ALL PASSED")

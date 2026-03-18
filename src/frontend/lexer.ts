@@ -10,6 +10,7 @@ export enum TokenType {
   // Keywords
   Let,
   Const,
+  Global,
   Fn,
   If,
   Else,
@@ -53,6 +54,7 @@ export enum TokenType {
 const KEYWORDS: Record<string, TokenType> = {
   "let": TokenType.Let,
   "const": TokenType.Const,
+  "global": TokenType.Global,
   "fn": TokenType.Fn,
   "if": TokenType.If,
   "else": TokenType.Else,

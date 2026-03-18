@@ -1,0 +1,38 @@
+# tests/20_string_methods.nv
+print("--- Advanced String Methods (v5.5.0) ---")
+
+let greeting = "  Hello NovaScript Production  "
+print("Original:", greeting)
+
+# Trim
+let trimmed = String.trim(greeting)
+print("Trimmed:", trimmed)
+
+# Upper / Lower
+print("Upper:", String.upper(trimmed))
+print("Lower:", String.lower(trimmed))
+
+# Includes
+if (String.includes(trimmed, "Nova")) {
+    print("String.includes: SUCCESS")
+}
+
+# Replace
+let replaced = String.replace(trimmed, "Production", "v5.5.0")
+print("Replaced:", replaced)
+
+# Slice
+let sliced = String.slice(replaced, 6, 16)
+print("Sliced (6 to 16):", sliced)
+
+# Split
+let words = String.split(replaced, " ")
+print("Split into array:", words)
+
+# IndexOf
+let idx = String.indexOf(replaced, "v5.5.0")
+print("IndexOf 'v5.5.0':", idx)
+
+if (words[1] is "NovaScript" and sliced is "NovaScript") {
+    print("String Methods: ALL PASSED")
+}

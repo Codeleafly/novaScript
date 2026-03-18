@@ -1,0 +1,67 @@
+# tests/23_mini_lexer.nv
+print("--- Mini Lexer (NovaScript written in NovaScript!) ---")
+
+# This proves NovaScript 5.5.0 can handle complex logic loops, array manipulation and string slicing!
+fn tokenize(source) {
+    let tokens = []
+    let cursor = 0
+    let len = source.length
+    
+    while (cursor < len) {
+        let char = String.slice(source, cursor, cursor + 1)
+        
+        # Skip whitespace
+        if (char is " " or char is "\n" or char is "\t") {
+            cursor = cursor + 1
+        }
+        # Math operators
+        else if (char is "+" or char is "-" or char is "*" or char is "/") {
+            Array.push(tokens, { type = "Operator", value = char })
+            cursor = cursor + 1
+        }
+        # Numbers
+        else if (Regex.test("[0-9]", char)) {
+            let numStr = ""
+            while (cursor < len and Regex.test("[0-9]", String.slice(source, cursor, cursor + 1))) {
+                numStr = numStr + String.slice(source, cursor, cursor + 1)
+                cursor = cursor + 1
+            }
+            Array.push(tokens, { type = "Number", value = num(numStr) })
+        }
+        # Identifiers
+        else if (Regex.test("[a-zA-Z]", char)) {
+            let identStr = ""
+            while (cursor < len and Regex.test("[a-zA-Z]", String.slice(source, cursor, cursor + 1))) {
+                identStr = identStr + String.slice(source, cursor, cursor + 1)
+                cursor = cursor + 1
+            }
+            Array.push(tokens, { type = "Identifier", value = identStr })
+        }
+        else {
+            # Unknown
+            cursor = cursor + 1
+        }
+    }
+    
+    return tokens
+}
+
+let codeCode = "let alpha 100 + 50"
+print("Source Code:", codeCode)
+
+let lexed = tokenize(codeCode)
+let lexLen = lexed.length
+print("Token count:", lexLen)
+print("Lexed Tokens:")
+let i = 0
+while i < lexLen {
+    let t = lexed[i]
+    print("  ", t.type, "->", t.value)
+    i = i + 1
+}
+
+# Tokens: 0=let, 1=alpha, 2=100, 3=+, 4=50
+if (lexed[0].value is "let" and lexed[2].value is 100 and lexed[4].value is 50) {
+    print("Mini Lexer: SUCCESS")
+}
+print("NovaScript is capable of building compilers!")

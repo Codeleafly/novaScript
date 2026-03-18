@@ -49,7 +49,9 @@ export function createHTTPModule() {
             fs.writeFileSync(tempFile, script);
             
             const nodeModulesPath = path.resolve(__dirname, '..', '..', '..', 'node_modules');
-            const outputBuffer = execSync(`NODE_PATH=${nodeModulesPath} node ${tempFile}`);
+            const outputBuffer = execSync(`node "${tempFile}"`, {
+                env: { ...process.env, NODE_PATH: nodeModulesPath }
+            });
             const output = outputBuffer ? outputBuffer.toString() : "";
             fs.unlinkSync(tempFile);
             

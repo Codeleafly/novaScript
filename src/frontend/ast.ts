@@ -4,6 +4,7 @@
 export type NodeType = 
   | "Program"
   | "VarDeclaration"
+  | "GlobalDeclaration"
   | "FunctionDeclaration"
   | "IfStatement"
   | "WhileStatement"
@@ -26,6 +27,7 @@ export interface Statement {
   kind: NodeType;
   line?: number;
   column?: number;
+  file?: string;
 }
 
 export interface Program extends Statement {
@@ -35,6 +37,13 @@ export interface Program extends Statement {
 
 export interface VarDeclaration extends Statement {
   kind: "VarDeclaration";
+  constant: boolean;
+  identifier: string;
+  value?: Expression;
+}
+
+export interface GlobalDeclaration extends Statement {
+  kind: "GlobalDeclaration";
   constant: boolean;
   identifier: string;
   value?: Expression;

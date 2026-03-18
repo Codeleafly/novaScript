@@ -1,0 +1,60 @@
+# tests/24_scoping.nv
+print("--- Variable Scoping Tests (v5.5.0) ---")
+
+# 1. Global variable declared at top level
+global counter = 0
+print("Initial global counter:", counter)
+
+# 2. Block scope: let inside if should NOT leak out
+let x = 100
+if (x is 100) {
+    let inner = 999
+    global counter = counter + 1
+    print("Inside block, inner:", inner)
+    print("Inside block, global counter:", counter)
+}
+# inner is not accessible here (block scope)
+print("After block, global counter:", counter)
+
+# 3. Function scope: variables inside fn don't leak
+fn increment() {
+    let localVar = 42
+    global counter = counter + 1
+    return localVar
+}
+
+let result = increment()
+print("Function returned:", result)
+print("Global counter after fn call:", counter)
+
+# 4. Closure: function captures outer scope
+fn makeAdder(n) {
+    fn add(x) {
+        return x + n
+    }
+    return add
+}
+
+let add5 = makeAdder(5)
+print("Closure add5(10):", add5(10))
+print("Closure add5(20):", add5(20))
+
+# 5. Nested function globals
+fn deepTest() {
+    fn inner1() {
+        fn inner2() {
+            global counter = counter + 10
+        }
+        inner2()
+    }
+    inner1()
+}
+deepTest()
+print("Global counter after nested fn:", counter)
+
+# Final assertions
+if (counter is 12 and result is 42 and add5(3) is 8) {
+    print("Scoping Tests: ALL PASSED")
+} else {
+    print("Scoping Tests: FAIL (counter=", counter, " result=", result, ")")
+}
