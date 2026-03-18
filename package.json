@@ -1,6 +1,7 @@
 {
   "name": "novascript",
-  "version": "1.0.0",
+  "version": "3.0.0",
+  "author": "Smart tell line",
   "description": "",
   "main": "dist/main.js",
   "bin": {
@@ -10,8 +11,7 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "devDependencies": {
     "@types/node": "^25.5.0",
