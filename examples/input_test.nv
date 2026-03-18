@@ -1,0 +1,15 @@
+print "--- Interactive Input Test ---"
+let name be call input "Enter your name: "
+print "Hello" name "!"
+
+let ageStr be call input "Enter your age: "
+let age be call toInteger ageStr
+
+if age greater than 18 then
+    print "You are an adult."
+otherwise
+    print "You are a minor."
+end
+
+let favNumber be call toNumber call input "Enter your favorite number: "
+print "Your number plus 10 is:" favNumber plus 10

@@ -1,0 +1,7 @@
+function libAdd a b
+    return a plus b
+end
+
+function libGreet name
+    print "Greetings from the library,", name
+end

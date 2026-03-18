@@ -1,0 +1,7 @@
+import "mylib.nv"
+
+let msg be "Testing Library Import..."
+print msg
+call libGreet "Developer"
+let sum be call libAdd 10 20
+print "Library sum result:" sum

@@ -1,0 +1,53 @@
+print "--------------------------------------"
+print "    NovaScript Interactive Calculator  "
+print "--------------------------------------"
+
+let continueCalculation be true
+
+while continueCalculation
+    let input1 be call input "Enter first number: "
+    let n1 be call toNumber input1
+    
+    let input2 be call input "Enter second number: "
+    let n2 be call toNumber input2
+    
+    print "Available operators: plus (+), minus (-), times (*), divided by (/)"
+    let op be call input "Choose an operator: "
+
+    let result be 0
+    let success be true
+
+    if op equals "+" or op equals "plus" then
+        result becomes n1 plus n2
+    otherwise
+        if op equals "-" or op equals "minus" then
+            result becomes n1 minus n2
+        otherwise
+            if op equals "*" or op equals "times" then
+                result becomes n1 times n2
+            otherwise
+                if op equals "/" or op equals "divided by" then
+                    if n2 equals 0 then
+                        print "Error: Division by zero is not allowed!"
+                        success becomes false
+                    otherwise
+                        result becomes n1 divided by n2
+                    end
+                otherwise
+                    print "Error: Unknown operator" op
+                    success becomes false
+                end
+            end
+        end
+    end
+
+    if success then
+        print ">>> Result:" n1 op n2 "is" result
+    end
+
+    let choice be call input "Calculate again? (yes/no): "
+    if choice equals "no" then
+        continueCalculation becomes false
+        print "Thank you for using NovaScript!"
+    end
+end
