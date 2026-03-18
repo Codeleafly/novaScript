@@ -1,4 +1,4 @@
-import "mylib.nv"
+import "examples/mylib.nv"
 
 let msg be "Testing Library Import..."
 print msg
