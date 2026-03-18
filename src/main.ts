@@ -3,16 +3,22 @@
 import Parser from "./frontend/parser";
 import { evaluate } from "./runtime/interpreter";
 import { createGlobalEnv } from "./runtime/environment";
-import { MK_NATIVE_FN, MK_NULL, MK_NUMBER, MK_STRING, MK_BOOL, RuntimeVal, StringVal } from "./runtime/values";
+import { MK_NATIVE_FN, MK_NULL, MK_NUMBER, MK_STRING, MK_BOOL, MK_OBJECT, RuntimeVal, StringVal } from "./runtime/values";
 import { NovaError, ErrorLocation, ErrorType } from "./runtime/errors";
 import * as readline from "readline";
 import * as fs from "fs";
+import * as path from "path";
 import * as os from "os";
 import chalk from "chalk";
 import promptSync from "prompt-sync";
 
+// Native Modules
+import { createFSModule } from "./runtime/native/fs_module";
+import { createHTTPModule } from "./runtime/native/http_module";
+import { createSysModule } from "./runtime/native/sys_module";
+
 const prompt = promptSync({ sigint: true });
-const VERSION = "v3.0.0";
+const VERSION = "v5.0.0";
 
 function stringify(val: RuntimeVal): string {
     switch (val.type) {
@@ -42,8 +48,11 @@ function plainStringify(val: RuntimeVal): string {
         case "array": 
             return "[" + (val as any).elements.map((e: any) => plainStringify(e)).join(", ") + "]";
         case "object": 
-            const props = (Array.from((val as any).properties.entries()) as [string, any][])
-                .map(([k, v]) => `${k}: ${plainStringify(v as any)}`)
+            const props = Array.from((val as any).properties.entries())
+                .map((entry: any) => {
+                    const [k, v] = entry;
+                    return `${k}: ${plainStringify(v as any)}`;
+                })
                 .join(", ");
             return "{ " + props + " }";
         case "function": return "[Function]";
@@ -55,16 +64,19 @@ function plainStringify(val: RuntimeVal): string {
 function setupEnv() {
   const env = createGlobalEnv();
   
+  // Standard Print
   env.declareVar("print", MK_NATIVE_FN((args, scope) => {
     const output = args.map(arg => plainStringify(arg)).join(" ");
-    console.log(output);
+    process.stdout.write(output + "\n");
     return MK_NULL();
   }), true);
 
+  // Time
   env.declareVar("time", MK_NATIVE_FN((args, scope) => {
     return MK_NUMBER(Date.now());
   }), true);
 
+  // Input
   env.declareVar("input", MK_NATIVE_FN((args, scope) => {
       const promptText = args.length > 0
           ? (args[0] as any).value.toString()
@@ -73,40 +85,75 @@ function setupEnv() {
       return MK_STRING(result || "");
   }), true);
 
-  env.declareVar("toInteger", MK_NATIVE_FN((args, scope) => {
-      if (args.length === 0) return MK_NUMBER(0);
-      const val = (args[0] as any).value;
-      return MK_NUMBER(parseInt(val) || 0);
-  }), true);
-
-  env.declareVar("toNumber", MK_NATIVE_FN((args, scope) => {
+  // Type Conversions
+  env.declareVar("num", MK_NATIVE_FN((args, scope) => {
       if (args.length === 0) return MK_NUMBER(0);
       const val = (args[0] as any).value;
       return MK_NUMBER(parseFloat(val) || 0);
   }), true);
 
-  env.declareVar("toString", MK_NATIVE_FN((args, scope) => {
+  env.declareVar("str", MK_NATIVE_FN((args, scope) => {
       if (args.length === 0) return MK_STRING("");
       const val = (args[0] as any).value;
       return MK_STRING(val.toString());
   }), true);
 
-  env.declareVar("isNumber", MK_NATIVE_FN((args, scope) => {
-      return MK_BOOL(args.length > 0 && args[0].type === "number");
+  env.declareVar("bool", MK_NATIVE_FN((args, scope) => {
+      if (args.length === 0) return MK_BOOL(false);
+      const val = (args[0] as any).value;
+      return MK_BOOL(!!val);
   }), true);
 
-  env.declareVar("isString", MK_NATIVE_FN((args, scope) => {
-      return MK_BOOL(args.length > 0 && args[0].type === "string");
-  }), true);
+  // Math Module
+  const mathProps = new Map<string, RuntimeVal>();
+  mathProps.set("sqrt", MK_NATIVE_FN((args) => MK_NUMBER(Math.sqrt((args[0] as any).value))));
+  mathProps.set("abs", MK_NATIVE_FN((args) => MK_NUMBER(Math.abs((args[0] as any).value))));
+  mathProps.set("random", MK_NATIVE_FN((args) => MK_NUMBER(Math.random())));
+  mathProps.set("pi", MK_NUMBER(Math.PI));
+  mathProps.set("sin", MK_NATIVE_FN((args) => MK_NUMBER(Math.sin((args[0] as any).value))));
+  mathProps.set("cos", MK_NATIVE_FN((args) => MK_NUMBER(Math.cos((args[0] as any).value))));
+  mathProps.set("floor", MK_NATIVE_FN((args) => MK_NUMBER(Math.floor((args[0] as any).value))));
+  mathProps.set("ceil", MK_NATIVE_FN((args) => MK_NUMBER(Math.ceil((args[0] as any).value))));
+  mathProps.set("pow", MK_NATIVE_FN((args) => MK_NUMBER(Math.pow((args[0] as any).value, (args[1] as any).value))));
+  
+  env.declareVar("Math", MK_OBJECT(mathProps), true);
 
-  env.declareVar("isBoolean", MK_NATIVE_FN((args, scope) => {
-      return MK_BOOL(args.length > 0 && args[0].type === "boolean");
-  }), true);
+  // Path Module
+  const pathProps = new Map<string, RuntimeVal>();
+  pathProps.set("join", MK_NATIVE_FN((args) => MK_STRING(path.join(...args.map(a => (a as any).value)))));
+  pathProps.set("resolve", MK_NATIVE_FN((args) => MK_STRING(path.resolve(...args.map(a => (a as any).value)))));
+  pathProps.set("basename", MK_NATIVE_FN((args) => MK_STRING(path.basename((args[0] as any).value))));
+  pathProps.set("dirname", MK_NATIVE_FN((args) => MK_STRING(path.dirname((args[0] as any).value))));
+  pathProps.set("extname", MK_NATIVE_FN((args) => MK_STRING(path.extname((args[0] as any).value))));
+  env.declareVar("Path", MK_OBJECT(pathProps), true);
 
-  env.declareVar("typeOf", MK_NATIVE_FN((args, scope) => {
-      if (args.length === 0) return MK_STRING("undefined");
-      return MK_STRING(args[0].type);
-  }), true);
+  // FS Module (Modular)
+  const fsModule = createFSModule();
+  env.declareVar("FS", fsModule, true);
+  env.declareVar("File", fsModule, true);
+
+  // Sys Module (Modular)
+  env.declareVar("Sys", createSysModule(VERSION), true);
+
+  // HTTP Module (Modular)
+  env.declareVar("HTTP", createHTTPModule(), true);
+
+  // JSON Module
+  const jsonProps = new Map<string, RuntimeVal>();
+  jsonProps.set("stringify", MK_NATIVE_FN((args) => MK_STRING(JSON.stringify(plainStringify(args[0])))));
+  jsonProps.set("parse", MK_NATIVE_FN((args) => {
+      try {
+          const obj = JSON.parse((args[0] as any).value);
+          // Very basic conversion back to RuntimeVal could be added here
+          return MK_STRING(JSON.stringify(obj)); 
+      } catch (e) { return MK_NULL(); }
+  }));
+  env.declareVar("JSON", MK_OBJECT(jsonProps), true);
+
+  // Compatibility (Optional)
+  env.declareVar("toInteger", env.lookupVar("num"), true);
+  env.declareVar("toNumber", env.lookupVar("num"), true);
+  env.declareVar("toString", env.lookupVar("str"), true);
   
   return env;
 }
@@ -139,6 +186,9 @@ function reportError(err: any) {
     } else {
         console.log(chalk.red.bold("\n[System Error]"));
         console.log(chalk.red("Message: ") + (err instanceof Error ? err.message : err));
+        if (err instanceof Error && err.stack) {
+            console.log(chalk.gray(err.stack));
+        }
     }
 
     console.log(chalk.gray("\n--- Diagnostic Information ---"));

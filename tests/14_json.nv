@@ -1,0 +1,17 @@
+# tests/14_json.nv
+
+print("--- JSON Module Tests (v4.1.0) ---")
+
+let user = {
+    name = "Raj",
+    age = 25,
+    roles = ["admin", "dev"]
+}
+
+print("Stringifying user object:")
+let jsonStr = JSON.stringify(user)
+print(jsonStr)
+
+if (jsonStr isnt "") {
+    print("JSON.stringify: SUCCESS")
+}

@@ -5,7 +5,7 @@ import {
     Statement, Program, Expression, BinaryExpr, NumericLiteral, Identifier, 
     VarDeclaration, AssignmentExpr, CallExpr, FunctionDeclaration, IfStatement, 
     WhileStatement, MemberExpr, ObjectLiteral, Property, StringLiteral, 
-    ReturnStatement, ArrayLiteral, ForStatement, ImportStatement 
+    ReturnStatement, ArrayLiteral, ForStatement, ImportStatement, ImportExpr, NodeType
 } from "./ast";
 import { tokenize, Token, TokenType } from "./lexer";
 import { NovaSyntaxError, ErrorLocation } from "../runtime/errors";
@@ -54,6 +54,8 @@ export default class Parser {
     const program: Program = {
       kind: "Program",
       body: [],
+      line: 1,
+      column: 1
     };
 
     while (this.not_eof()) {
@@ -68,186 +70,107 @@ export default class Parser {
       case TokenType.Let:
       case TokenType.Const:
         return this.parse_var_declaration();
-      case TokenType.Function:
+      case TokenType.Fn:
         return this.parse_function_declaration();
       case TokenType.If:
         return this.parse_if_statement();
       case TokenType.While:
-      case TokenType.Repeat:
-        return this.parse_loop_statement();
+        return this.parse_while_statement();
+      case TokenType.For:
+        return this.parse_for_statement();
       case TokenType.Return:
         return this.parse_return_statement();
-      case TokenType.Import:
-        this.eat(); // eat import
-        const moduleToken = this.expect(TokenType.String, "Expected string module name after import");
-        return { kind: "ImportStatement", moduleName: moduleToken.value } as ImportStatement;
-      case TokenType.Print:
-          this.eat(); // eat print
-          const args = [];
-          while (this.is_start_of_expression(this.at().type)) {
-              if (this.at().type === TokenType.Identifier) {
-                  const next = this.tokens[1]?.type;
-                  if (next === TokenType.Becomes || next === TokenType.Be) break;
-              }
-              
-              args.push(this.parse_expression());
-              
-              if (this.at().type === TokenType.Comma) {
-                  this.eat();
-              } else {
-                  const nextType = this.at().type;
-                  if (nextType === TokenType.End || nextType === TokenType.Otherwise || nextType === TokenType.EOF) {
-                      break;
-                  }
-                  if (!this.is_start_of_expression(nextType)) break;
-              }
-          }
-          return {
-              kind: "CallExpr",
-              caller: { kind: "Identifier", symbol: "print" } as Identifier,
-              args,
-          } as CallExpr;
+      case TokenType.OpenBrace:
+          return this.parse_block();
       default:
+        // `include` is now parsed as a primary expression,
+        // so if it's a statement, it will be parsed as an expression statement.
         return this.parse_expression();
     }
   }
 
-  private parse_return_statement(): Statement {
-      this.eat(); // eat return
-      if (this.at().type === TokenType.End || this.at().type === TokenType.EOF || this.at().type === TokenType.Otherwise) {
-          return { kind: "ReturnStatement", value: undefined } as ReturnStatement;
-      }
-      const value = this.parse_expression();
-      return { kind: "ReturnStatement", value } as ReturnStatement;
-  }
-
-  private parse_loop_statement(): Statement {
-      if (this.at().type === TokenType.Repeat) {
-          this.eat(); // eat repeat
-          const identifier = this.expect(TokenType.Identifier, "Expected identifier after repeat").value;
-          this.expect(TokenType.From, "Expected 'from' after identifier in repeat loop");
-          const start = this.parse_expression();
-          this.expect(TokenType.To, "Expected 'to' after start value in repeat loop");
-          const end = this.parse_expression();
-          
-          const body: Statement[] = [];
-          while (this.at().type !== TokenType.End && this.not_eof()) {
-              body.push(this.parse_statement());
-          }
-          this.expect(TokenType.End, "Expected 'end' after repeat loop body");
-          
-          return {
-              kind: "ForStatement",
-              counter: identifier,
-              start,
-              end,
-              body,
-          } as ForStatement;
-      }
-      
-      this.eat(); // eat while
-      const condition = this.parse_expression();
-      if (this.at().type === TokenType.Loop) this.eat();
-
+  private parse_block(): Statement {
+      const openBrace = this.expect(TokenType.OpenBrace, "Expected { to start block");
       const body: Statement[] = [];
-      while (this.at().type !== TokenType.End && this.not_eof()) {
+      while (this.at().type !== TokenType.CloseBrace && this.not_eof()) {
           body.push(this.parse_statement());
       }
-      this.expect(TokenType.End, "Expected 'end' after while loop");
+      this.expect(TokenType.CloseBrace, "Expected } to end block");
+      return { kind: "Program", body, line: openBrace.line, column: openBrace.column } as any;
+  }
 
-      return {
-          kind: "WhileStatement",
-          condition,
-          body,
-      } as WhileStatement;
+  private parse_return_statement(): Statement {
+      const returnToken = this.eat();
+      const value = this.is_start_of_expression(this.at().type) ? this.parse_expression() : undefined;
+      return { kind: "ReturnStatement", value, line: returnToken.line, column: returnToken.column } as ReturnStatement;
+  }
+
+  private parse_while_statement(): Statement {
+      const whileToken = this.eat();
+      this.expect(TokenType.OpenParen, "Expected ( after while");
+      const condition = this.parse_expression();
+      this.expect(TokenType.CloseParen, "Expected ) after condition");
+      const bodyNode = this.parse_statement();
+      const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
+      return { kind: "WhileStatement", condition, body, line: whileToken.line, column: whileToken.column } as WhileStatement;
+  }
+
+  private parse_for_statement(): Statement {
+      const forToken = this.eat();
+      this.expect(TokenType.OpenParen, "Expected ( after for");
+      const identifier = this.expect(TokenType.Identifier, "Expected identifier in for loop").value;
+      this.expect(TokenType.From, "Expected 'from' in for loop");
+      const start = this.parse_expression();
+      this.expect(TokenType.To, "Expected 'to' in for loop");
+      const end = this.parse_expression();
+      this.expect(TokenType.CloseParen, "Expected ) after for range");
+      const bodyNode = this.parse_statement();
+      const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
+      return { kind: "ForStatement", counter: identifier, start, end, body, line: forToken.line, column: forToken.column } as ForStatement;
   }
 
   private parse_if_statement(): Statement {
-      this.eat(); // eat if
+      const ifToken = this.eat();
+      this.expect(TokenType.OpenParen, "Expected ( after if");
       const condition = this.parse_expression();
-      if (this.at().type === TokenType.Then) this.eat();
-
-      const thenBranch: Statement[] = [];
-      while (this.at().type !== TokenType.Otherwise && this.at().type !== TokenType.End && this.not_eof()) {
-          thenBranch.push(this.parse_statement());
-      }
-
-      let elseBranch: Statement[] = [];
-      if (this.at().type === TokenType.Otherwise) {
+      this.expect(TokenType.CloseParen, "Expected ) after condition");
+      const thenNode = this.parse_statement();
+      const thenBranch = thenNode.kind === "Program" ? (thenNode as any).body : [thenNode];
+      let elseBranch: Statement[] | undefined = undefined;
+      if (this.at().type === TokenType.Else) {
           this.eat();
-          while (this.at().type !== TokenType.End && this.not_eof()) {
-              elseBranch.push(this.parse_statement());
-          }
+          const elseNode = this.parse_statement();
+          elseBranch = elseNode.kind === "Program" ? (elseNode as any).body : [elseNode];
       }
-
-      this.expect(TokenType.End, "Expected 'end' after if statement");
-
-      return {
-          kind: "IfStatement",
-          condition,
-          thenBranch,
-          elseBranch: elseBranch.length > 0 ? elseBranch : undefined
-      } as IfStatement;
+      return { kind: "IfStatement", condition, thenBranch, elseBranch, line: ifToken.line, column: ifToken.column } as IfStatement;
   }
 
   private parse_function_declaration(): Statement {
-      this.eat(); // eat function
+      const fnToken = this.eat();
       const name = this.expect(TokenType.Identifier, "Expected function name").value;
-      
+      this.expect(TokenType.OpenParen, "Expected ( after function name");
       const args: string[] = [];
       while (this.at().type === TokenType.Identifier) {
           args.push(this.eat().value);
+          if (this.at().type === TokenType.Comma) this.eat();
       }
-
-      const body: Statement[] = [];
-      if (this.at().type === TokenType.Return) {
-          body.push(this.parse_return_statement());
-          if (this.at().type === TokenType.End) {
-              this.eat();
-          }
-      } else {
-          while (this.at().type !== TokenType.End && this.not_eof()) {
-              body.push(this.parse_statement());
-          }
-          this.expect(TokenType.End, "Expected 'end' after function body");
-      }
-
-      return {
-          kind: "FunctionDeclaration",
-          name,
-          parameters: args,
-          body,
-      } as FunctionDeclaration;
+      this.expect(TokenType.CloseParen, "Expected ) after function parameters");
+      const bodyNode = this.parse_statement();
+      const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
+      return { kind: "FunctionDeclaration", name, parameters: args, body, line: fnToken.line, column: fnToken.column } as FunctionDeclaration;
   }
 
   private parse_var_declaration(): Statement {
-    const isConstant = this.eat().type === TokenType.Const;
-    const identifier = this.expect(
-      TokenType.Identifier,
-      "Expected identifier name following let/const keywords."
-    ).value;
-
-    if (this.at().type === TokenType.Be) {
-      this.eat(); // eat 'be'
+    const tk = this.eat();
+    const isConstant = tk.type === TokenType.Const;
+    const identifier = this.expect(TokenType.Identifier, "Expected identifier name.").value;
+    if (this.at().type === TokenType.Assign) {
+      this.eat();
       const value = this.parse_expression();
-      return {
-        kind: "VarDeclaration",
-        constant: isConstant,
-        identifier,
-        value,
-      } as VarDeclaration;
-    } 
-    
-    if (isConstant) {
-      throw new NovaSyntaxError("Must assign value to constant expression. No value provided.", this.getLocation(this.at()));
+      return { kind: "VarDeclaration", constant: isConstant, identifier, value, line: tk.line, column: tk.column } as VarDeclaration;
     }
-
-    return {
-      kind: "VarDeclaration",
-      constant: isConstant,
-      identifier,
-      value: undefined,
-    } as VarDeclaration;
+    if (isConstant) throw new NovaSyntaxError("Must assign value to constant.", this.getLocation(this.at()));
+    return { kind: "VarDeclaration", constant: false, identifier, value: undefined, line: tk.line, column: tk.column } as VarDeclaration;
   }
 
   private parse_expression(): Expression {
@@ -256,73 +179,41 @@ export default class Parser {
 
   private parse_assignment_expr(): Expression {
     const left = this.parse_object_expr();
-
-    if (this.at().type === TokenType.Becomes) {
-      this.eat(); // eat 'becomes'
+    if (this.at().type === TokenType.Assign) {
+      this.eat();
       const value = this.parse_assignment_expr();
-      return {
-        kind: "AssignmentExpr",
-        assignee: left,
-        value,
-      } as AssignmentExpr;
+      return { kind: "AssignmentExpr", assignee: left, value, line: left.line, column: left.column } as AssignmentExpr;
     }
-
     return left;
   }
 
   private parse_object_expr(): Expression {
-      if (this.at().type === TokenType.Identifier) {
-          const nextToken = this.tokens[1];
-          if (this.is_start_of_expression(nextToken.type)) {
-               if (nextToken.type === TokenType.String || nextToken.type === TokenType.Number) {
-                   const afterValue = this.tokens[2];
-                   const isObject = !afterValue || 
-                                    afterValue.type === TokenType.Comma || 
-                                    afterValue.type === TokenType.End || 
-                                    afterValue.type === TokenType.Otherwise || 
-                                    afterValue.type === TokenType.EOF;
-
-                   if (isObject) {
-                       const properties: Property[] = [];
-                       while (this.at().type !== TokenType.EOF && this.at().type !== TokenType.End && this.at().type !== TokenType.Otherwise) {
-                           const key = this.expect(TokenType.Identifier, "Expected key in object literal").value;
-                           const value = this.parse_logical_or_expr();
-                           properties.push({ kind: "Property", key, value } as Property);
-                           
-                           if (this.at().type !== TokenType.Comma) {
-                               break;
-                           }
-                           this.eat();
-                       }
-                       if (this.at().type === TokenType.End) {
-                           this.eat();
-                       }
-                       return { kind: "ObjectLiteral", properties } as ObjectLiteral;
-                   }
-               }
-          }
-      }
-
-      const left = this.parse_logical_or_expr();
-      
-      if (this.at().type === TokenType.Comma) {
-          const elements = [left];
-          while (this.at().type === TokenType.Comma) {
+      if (this.at().type !== TokenType.OpenBrace) return this.parse_logical_or_expr();
+      const openBrace = this.eat();
+      const properties: Property[] = [];
+      while (this.not_eof() && this.at().type !== TokenType.CloseBrace) {
+          const keyToken = this.expect(TokenType.Identifier, "Object key expected.");
+          const key = keyToken.value;
+          let value: Expression | undefined;
+          if (this.at().type === TokenType.Assign) {
               this.eat();
-              elements.push(this.parse_logical_or_expr());
+              value = this.parse_expression();
           }
-          return { kind: "ArrayLiteral", elements } as ArrayLiteral;
+          properties.push({ kind: "Property", key, value, line: keyToken.line, column: keyToken.column });
+          if (this.at().type !== TokenType.CloseBrace) {
+              this.expect(TokenType.Comma, "Expected comma or closing brace.");
+          }
       }
-
-      return left;
+      this.expect(TokenType.CloseBrace, "Object literal missing closing brace.");
+      return { kind: "ObjectLiteral", properties, line: openBrace.line, column: openBrace.column } as ObjectLiteral;
   }
 
   private parse_logical_or_expr(): Expression {
       let left = this.parse_logical_and_expr();
       while(this.at().type === TokenType.Or) {
-          const operator = this.eat().value;
+          const opToken = this.eat();
           const right = this.parse_logical_and_expr();
-          left = { kind: "BinaryExpr", left, right, operator } as BinaryExpr;
+          left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
       }
       return left;
   }
@@ -330,19 +221,19 @@ export default class Parser {
   private parse_logical_and_expr(): Expression {
       let left = this.parse_equality_expr();
       while(this.at().type === TokenType.And) {
-          const operator = this.eat().value;
+          const opToken = this.eat();
           const right = this.parse_equality_expr();
-          left = { kind: "BinaryExpr", left, right, operator } as BinaryExpr;
+          left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
       }
       return left;
   }
 
   private parse_equality_expr(): Expression {
       let left = this.parse_relational_expr();
-      while(this.at().type === TokenType.Equals || this.at().type === TokenType.NotEquals) {
-          const operator = this.eat().value;
+      while(this.at().type === TokenType.Is || this.at().type === TokenType.Isnt || this.at().type === TokenType.Equals || this.at().type === TokenType.NotEquals) {
+          const opToken = this.eat();
           const right = this.parse_relational_expr();
-          left = { kind: "BinaryExpr", left, right, operator } as BinaryExpr;
+          left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
       }
       return left;
   }
@@ -350,152 +241,120 @@ export default class Parser {
   private parse_relational_expr(): Expression {
       let left = this.parse_additive_expr();
       while(this.at().type === TokenType.LessThan || this.at().type === TokenType.GreaterThan) {
-          const operator = this.eat().value;
+          const opToken = this.eat();
           const right = this.parse_additive_expr();
-          left = { kind: "BinaryExpr", left, right, operator } as BinaryExpr;
+          left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
       }
       return left;
   }
 
   private parse_additive_expr(): Expression {
     let left = this.parse_multiplicative_expr();
-    while (this.at().value === "plus" || this.at().value === "minus" || this.at().type === TokenType.Plus || this.at().type === TokenType.Minus) {
-      const operator = this.eat().value;
+    while (this.at().type === TokenType.Plus || this.at().type === TokenType.Minus) {
+      const opToken = this.eat();
       const right = this.parse_multiplicative_expr();
-      left = {
-        kind: "BinaryExpr",
-        left,
-        right,
-        operator,
-      } as BinaryExpr;
+      left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
     }
     return left;
   }
 
   private parse_multiplicative_expr(): Expression {
-    let left = this.parse_call_member_expr();
-    while (
-      this.at().value === "times" || 
-      this.at().value === "divided by" || 
-      this.at().value === "modulo" ||
-      this.at().type === TokenType.Times ||
-      this.at().type === TokenType.DividedBy || 
-      this.at().type === TokenType.Modulo
-    ) {
-      const operator = this.eat().value;
-      const right = this.parse_call_member_expr();
-      left = {
-        kind: "BinaryExpr",
-        left,
-        right,
-        operator,
-      } as BinaryExpr;
+    let left = this.parse_unary_expr();
+    while (this.at().type === TokenType.Times || this.at().type === TokenType.Slash || this.at().type === TokenType.Percent) {
+      const opToken = this.eat();
+      const right = this.parse_unary_expr();
+      left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
     }
     return left;
   }
 
+  private parse_unary_expr(): Expression {
+      if (this.at().type === TokenType.Minus || this.at().type === TokenType.Not) {
+          const opToken = this.eat();
+          const arg = this.parse_unary_expr();
+          return { kind: "BinaryExpr", left: arg, right: { kind: "NumericLiteral", value: 0 } as any, operator: "unary_" + opToken.value, line: opToken.line, column: opToken.column } as any;
+      }
+      return this.parse_call_member_expr();
+  }
+
   private parse_call_member_expr(): Expression {
       const member = this.parse_member_expr();
-
       if (this.at().type === TokenType.OpenParen) {
           return this.parse_call_expr(member);
       }
-
       return member;
   }
 
   private parse_call_expr(caller: Expression): Expression {
-    return {
-      kind: "CallExpr",
-      caller,
-      args: [], // Handle parenthesized args if needed
-    } as CallExpr;
+    const openParen = this.eat();
+    const args = this.at().type === TokenType.CloseParen ? [] : this.parse_arguments_list();
+    this.expect(TokenType.CloseParen, "Missing closing parenthesis in call expression.");
+    return { kind: "CallExpr", caller, args, line: openParen.line, column: openParen.column } as CallExpr;
+  }
+
+  private parse_arguments_list(): Expression[] {
+      const args = [this.parse_expression()];
+      while (this.at().type === TokenType.Comma && this.eat()) {
+          args.push(this.parse_expression());
+      }
+      return args;
   }
 
   private parse_member_expr(): Expression {
       let object = this.parse_primary_expr();
-
       while (this.at().type === TokenType.Dot) {
-          this.eat(); // eat .
+          const dotToken = this.eat();
           const property = this.parse_primary_expr();
            if (property.kind !== "Identifier") {
-              throw new NovaSyntaxError("Cannot use dot operator without right hand side being an identifier.", this.getLocation(this.at()));
+              throw new NovaSyntaxError("Cannot use dot operator without identifier.", this.getLocation(this.at()));
           }
-          object = {
-              kind: "MemberExpr",
-              object,
-              property,
-              computed: false
-          } as MemberExpr;
+          object = { kind: "MemberExpr", object, property, computed: false, line: dotToken.line, column: dotToken.column } as MemberExpr;
       }
-
       return object;
+  }
+
+  private parse_array_expr(): Expression {
+      const openBracket = this.eat();
+      const elements: Expression[] = [];
+      while (this.at().type !== TokenType.CloseBracket && this.not_eof()) {
+          elements.push(this.parse_expression());
+          if (this.at().type === TokenType.Comma) this.eat();
+      }
+      this.expect(TokenType.CloseBracket, "Expected ] after array literal.");
+      return { kind: "ArrayLiteral", elements, line: openBracket.line, column: openBracket.column } as ArrayLiteral;
   }
 
   private parse_primary_expr(): Expression {
     const tk = this.at();
-
     switch (tk.type) {
       case TokenType.Identifier:
-        return { kind: "Identifier", symbol: this.eat().value } as Identifier;
-
+        return { kind: "Identifier", symbol: this.eat().value, line: tk.line, column: tk.column } as Identifier;
       case TokenType.Number:
-        return { kind: "NumericLiteral", value: parseFloat(this.eat().value) } as NumericLiteral;
-
+        return { kind: "NumericLiteral", value: parseFloat(this.eat().value), line: tk.line, column: tk.column } as NumericLiteral;
       case TokenType.String:
-        return { kind: "StringLiteral", value: this.eat().value } as StringLiteral;
-
+        return { kind: "StringLiteral", value: this.eat().value, line: tk.line, column: tk.column } as StringLiteral;
+      case TokenType.Include:
+          const includeToken = this.eat();
+          this.expect(TokenType.OpenParen, "Expected ( after include keyword.");
+          const moduleToken = this.expect(TokenType.String, "Expected string module name in include().");
+          this.expect(TokenType.CloseParen, "Expected ) after module name in include().");
+          return { kind: "ImportExpr", moduleName: moduleToken.value, line: includeToken.line, column: includeToken.column } as ImportExpr;
       case TokenType.OpenParen: {
         this.eat();
         const value = this.parse_expression();
-        this.expect(TokenType.CloseParen, "Expected closing parenthesis");
+        this.expect(TokenType.CloseParen, "Expected closing parenthesis.");
         return value;
       }
-      
-      case TokenType.Call: {
-          this.eat();
-          let caller: Expression;
-          const next = this.at().type;
-          
-          if (next === TokenType.Input || next === TokenType.Print) {
-              caller = { kind: "Identifier", symbol: this.eat().value.toLowerCase() } as Identifier;
-          } else {
-              caller = this.parse_primary_expr();
-          }
-
-          const args: Expression[] = [];
-          while (this.is_start_of_expression(this.at().type)) {
-              if (this.at().type === TokenType.Identifier) {
-                  const nextToken = this.tokens[1]?.type;
-                  if (nextToken === TokenType.Becomes || nextToken === TokenType.Be) break;
-              }
-              args.push(this.parse_expression());
-              if (this.at().type === TokenType.Comma) this.eat();
-          }
-          return { kind: "CallExpr", caller, args } as CallExpr;
-      }
-      
-      case TokenType.Input: {
-          this.eat();
-          const args: Expression[] = [];
-          if (this.at().type === TokenType.String) {
-              args.push(this.parse_primary_expr());
-          }
-          return { kind: "CallExpr", caller: { kind: "Identifier", symbol: "input" } as Identifier, args } as CallExpr;
-      }
-
+      case TokenType.OpenBracket:
+          return this.parse_array_expr();
       default:
-        if (this.at().type === TokenType.EOF) {
-            throw new NovaSyntaxError("Unexpected end of file. Expected an expression.", this.getLocation(tk));
-        }
-        throw new NovaSyntaxError(`Unexpected token found during parsing! Found: ${TokenType[tk.type]} ('${tk.value}')`, this.getLocation(tk));
+        throw new NovaSyntaxError(`Unexpected token found: ${tk.value}`, this.getLocation(tk));
     }
   }
   
   private is_start_of_expression(type: TokenType): boolean {
-      return [
-          TokenType.Identifier, TokenType.Number, TokenType.String, 
-          TokenType.OpenParen, TokenType.Call, TokenType.Input
-      ].includes(type);
+      return type === TokenType.Identifier || type === TokenType.Number || type === TokenType.String || 
+             type === TokenType.OpenParen || type === TokenType.OpenBrace || type === TokenType.OpenBracket || 
+             type === TokenType.Minus || type === TokenType.Not || type === TokenType.Include;
   }
 }

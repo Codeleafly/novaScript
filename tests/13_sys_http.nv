@@ -1,0 +1,27 @@
+# tests/13_sys_http.nv
+
+print("--- Sys & HTTP Module Tests (v4.1.0) ---")
+
+print("Hostname:", Sys.hostname())
+print("Uptime:", Sys.uptime())
+print("Free Mem:", Sys.freemem())
+
+print("Executing 'ls' via Sys.exec:")
+let lsOutput = Sys.exec("ls tests")
+print(lsOutput)
+
+print("\nFetching Google.com via HTTP.get:")
+let google = HTTP.get("https://www.google.com")
+if (google isnt null) {
+    let s = str(google)
+    print("HTTP.get SUCCESS! (Length:", s.length, ")")
+}
+ else {
+    print("HTTP.get FAILURE (Is curl installed?)")
+}
+
+print("\nNet.ping('8.8.8.8'):")
+let pingRes = Net.ping("8.8.8.8")
+print("Ping result:", pingRes)
+
+print("Sys, HTTP, and Net tests: SUCCESS")

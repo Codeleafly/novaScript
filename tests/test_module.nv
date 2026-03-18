@@ -1,0 +1,18 @@
+# tests/test_module.nv
+
+# This is a test module for NovaScript v5
+
+# This variable should NOT be accessible from the outside
+let privateVar = "I am private"
+
+# This variable will be exported
+let publicVar = "I am public"
+
+# This function will be exported
+fn sayHello(name) {
+    return "Hello " + name + " from the module!"
+}
+
+# Export the public parts
+exports.publicVar = publicVar
+exports.sayHello = sayHello

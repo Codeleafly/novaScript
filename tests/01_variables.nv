@@ -1,0 +1,24 @@
+# tests/01_variables.nv
+
+print("--- Variable & Constant Tests ---")
+
+# Variables
+let x = 10
+print("Initial x:", x)
+
+x = 20
+print("Updated x (assignment):", x)
+
+# Constants
+const pi = 3.14
+print("Constant pi:", pi)
+
+# Multiple declarations
+let a = 1
+let b = 2
+let c = a + b
+print("a + b =", c)
+
+if (c is 3) {
+    print("Variable declaration and assignment: SUCCESS")
+}

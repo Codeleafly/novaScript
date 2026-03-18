@@ -1,0 +1,7 @@
+# tests/11_errors.nv
+
+print("--- Error Handling Demonstration ---")
+print("This file will trigger a syntax error on the next line.")
+
+# Intentional Syntax Error: missing =
+let x 10

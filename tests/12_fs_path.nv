@@ -1,0 +1,33 @@
+# tests/12_fs_path.nv
+
+print("--- FS & Path Module Tests (v4.1.0) ---")
+
+let dir = "tests/test_dir"
+let file = Path.join(dir, "inner.txt")
+
+print("Creating directory:", dir)
+FS.mkdir(dir)
+
+print("Writing to:", file)
+FS.write(file, "Hello from v4.1.0!")
+
+print("File exists:", FS.exists(file))
+print("Is file:", FS.isFile(file))
+print("Is directory:", FS.isDir(dir))
+
+let content = FS.read(file)
+print("Content:", content)
+
+print("Appending to file...")
+FS.append(file, " More data!")
+print("New content:", FS.read(file))
+
+print("Path Basename:", Path.basename(file))
+print("Path Dirname:", Path.dirname(file))
+print("Path Extname:", Path.extname(file))
+
+# Cleanup
+# FS.delete(file)
+# FS.rmdir(dir)
+
+print("FS and Path tests: SUCCESS")

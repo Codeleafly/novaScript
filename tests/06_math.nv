@@ -1,0 +1,22 @@
+# tests/06_math.nv
+
+print("--- Math Library Tests ---")
+
+print("Math.pi:", Math.pi)
+print("Math.sqrt(25):", Math.sqrt(25))
+print("Math.abs(-10):", Math.abs(-10))
+print("Math.pow(2, 4):", Math.pow(2, 4))
+print("Math.floor(3.7):", Math.floor(3.7))
+print("Math.ceil(3.2):", Math.ceil(3.2))
+
+# Check sqrt
+if (Math.sqrt(25) is 5) {
+    print("Math.sqrt test: PASS")
+}
+
+# Check pi
+if (Math.pi > 3.14 and Math.pi < 3.15) {
+    print("Math.pi test: PASS")
+}
+
+print("Math library: SUCCESS")

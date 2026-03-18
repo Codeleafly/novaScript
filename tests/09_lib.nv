@@ -1,0 +1,12 @@
+# tests/09_lib.nv
+# This is a module file for tests/09_modules.nv
+
+fn lib_multiply(a, b) {
+    return a * b
+}
+
+let lib_name = "MathHelper"
+
+# Export the public parts
+exports.lib_multiply = lib_multiply
+exports.lib_name = lib_name

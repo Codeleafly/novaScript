@@ -1,0 +1,57 @@
+# tests/16_fs_advanced.nv
+
+print("--- Advanced FS Module Tests ---")
+
+let testDir = "./test_fs_v5"
+
+# 1. Recursive Directory Creation
+print("Creating recursive directory:", testDir)
+FS.mkdir(testDir + "/a/b/c")
+
+if (FS.exists(testDir + "/a/b/c")) {
+    print("FS.mkdir recursive: SUCCESS")
+}
+
+# 2. Writing and Copying
+print("Writing file to", testDir + "/original.txt")
+FS.write(testDir + "/original.txt", "Hello v5.0.0")
+
+print("Copying file recursively...")
+FS.copy(testDir + "/original.txt", testDir + "/copy.txt")
+
+if (FS.exists(testDir + "/copy.txt")) {
+    print("FS.copy: SUCCESS")
+}
+
+# 3. Listing Directory
+print("Listing directory:", testDir)
+let files = FS.list(testDir)
+print("Files in testDir:", files)
+
+# 4. Searching
+print("Searching for 'copy' in", testDir)
+let searchResults = FS.search("copy", testDir)
+print("Search results:", searchResults)
+
+if (searchResults.length > 0) {
+    print("FS.search: SUCCESS")
+}
+
+# 5. Renaming/Moving
+print("Renaming copy.txt to moved.txt")
+FS.rename(testDir + "/copy.txt", testDir + "/moved.txt")
+
+if (FS.exists(testDir + "/moved.txt") and not FS.exists(testDir + "/copy.txt")) {
+    print("FS.rename: SUCCESS")
+}
+
+# 6. Recursive Deletion
+print("Cleaning up (recursive delete):", testDir)
+FS.delete(testDir)
+
+if (not FS.exists(testDir)) {
+    print("FS.delete recursive: SUCCESS")
+    print("Advanced FS: ALL TESTS PASSED")
+} else {
+    print("FS.delete recursive: FAIL")
+}

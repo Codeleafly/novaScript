@@ -10,55 +10,42 @@ export enum TokenType {
   // Keywords
   Let,
   Const,
-  Be,      // =
-  Becomes, // = (assignment to existing var)
-  
-  // Comparison
-  Equals,
-  NotEquals,
-  LessThan,
-  GreaterThan,
-  
-  // Logical
+  Fn,
+  If,
+  Else,
+  While,
+  For,
+  From,
+  To,
+  Return,
+  Include,
   And,
   Or,
   Not,
+  Is,
+  Isnt,
   
-  // Arithmetic
-  Plus,       // +
-  Minus,      // -
-  Times,      // *
-  DividedBy,  // /
-  Modulo,     // %
+  // Symbols
+  Assign,      // =
+  Equals,      // ==
+  NotEquals,   // !=
+  LessThan,    // <
+  GreaterThan, // >
+  Plus,        // +
+  Minus,       // -
+  Times,       // *
+  Slash,       // /
+  Percent,     // %
   
-  // Control Flow
-  If,
-  Then,
-  Otherwise, // else
-  End,       // end block
-  While,
-  Loop,
-  Repeat,
-  For,
-  To,
-  From,
-  
-  // Functions
-  Function,
-  Return,
-  Call, // Explicit call keyword (optional but helpful)
-  
-  // Grouping & Punctuation
-  OpenParen,
-  CloseParen,
+  OpenParen,   // (
+  CloseParen,  // )
+  OpenBrace,   // {
+  CloseBrace,  // }
+  OpenBracket, // [
+  CloseBracket,// ]
   Comma,
   Dot,
   
-  // IO / Native
-  Print,
-  Input,
-  Import,
-
   // Special
   EOF,
 }
@@ -66,35 +53,20 @@ export enum TokenType {
 const KEYWORDS: Record<string, TokenType> = {
   "let": TokenType.Let,
   "const": TokenType.Const,
-  "be": TokenType.Be,
-  "becomes": TokenType.Becomes,
+  "fn": TokenType.Fn,
   "if": TokenType.If,
-  "then": TokenType.Then,
-  "otherwise": TokenType.Otherwise,
-  "end": TokenType.End,
+  "else": TokenType.Else,
   "while": TokenType.While,
-  "loop": TokenType.Loop,
-  "repeat": TokenType.Repeat,
   "for": TokenType.For,
-  "to": TokenType.To,
   "from": TokenType.From,
-  "function": TokenType.Function,
+  "to": TokenType.To,
   "return": TokenType.Return,
-  "call": TokenType.Call,
-  "plus": TokenType.Plus,
-  "minus": TokenType.Minus,
-  "times": TokenType.Times,
-  "divided": TokenType.DividedBy, 
-  "modulo": TokenType.Modulo,
+  "include": TokenType.Include,
   "and": TokenType.And,
   "or": TokenType.Or,
   "not": TokenType.Not,
-  "greater": TokenType.GreaterThan, 
-  "less": TokenType.LessThan,       
-  "equals": TokenType.Equals,
-  "print": TokenType.Print,
-  "input": TokenType.Input,
-  "import": TokenType.Import,
+  "is": TokenType.Is,
+  "isnt": TokenType.Isnt,
 };
 
 export interface Token {
@@ -115,136 +87,141 @@ export function tokenize(sourceCode: string): Token[] {
   };
 
   while (src.length > 0) {
-    // 1. Handle Skip tokens
+    // 1. Handle Single-character Symbols
     if (src[0] === "(") {
-      src.shift(); column++;
-      pushToken("(", TokenType.OpenParen);
+      pushToken(src.shift()!, TokenType.OpenParen);
     } else if (src[0] === ")") {
-      src.shift(); column++;
-      pushToken(")", TokenType.CloseParen);
+      pushToken(src.shift()!, TokenType.CloseParen);
+    } else if (src[0] === "{") {
+      pushToken(src.shift()!, TokenType.OpenBrace);
+    } else if (src[0] === "}") {
+      pushToken(src.shift()!, TokenType.CloseBrace);
+    } else if (src[0] === "[") {
+      pushToken(src.shift()!, TokenType.OpenBracket);
+    } else if (src[0] === "]") {
+      pushToken(src.shift()!, TokenType.CloseBracket);
     } else if (src[0] === ",") {
-      src.shift(); column++;
-      pushToken(",", TokenType.Comma);
+      pushToken(src.shift()!, TokenType.Comma);
     } else if (src[0] === ".") {
-      src.shift(); column++;
-      pushToken(".", TokenType.Dot);
-    } 
-    // Handle binary operators like +, -, *, / if user uses symbols
-    else if (src[0] === "+") {
-      src.shift(); column++;
-      pushToken("+", TokenType.Plus);
+      pushToken(src.shift()!, TokenType.Dot);
+    } else if (src[0] === "+") {
+      pushToken(src.shift()!, TokenType.Plus);
     } else if (src[0] === "-") {
-      src.shift(); column++;
-      pushToken("-", TokenType.Minus);
+      pushToken(src.shift()!, TokenType.Minus);
     } else if (src[0] === "*") {
-      src.shift(); column++;
-      pushToken("*", TokenType.Times);
+      pushToken(src.shift()!, TokenType.Times);
     } else if (src[0] === "/") {
-      src.shift(); column++;
-      pushToken("/", TokenType.DividedBy);
+      pushToken(src.shift()!, TokenType.Slash);
+    } else if (src[0] === "%") {
+      pushToken(src.shift()!, TokenType.Percent);
     } else if (src[0] === "=") {
         if (src[1] === "=") {
              src.shift(); src.shift(); column += 2;
-             pushToken("==", TokenType.Equals);
+             tokens.push({ value: "==", type: TokenType.Equals, line, column: column - 2 });
+             continue;
         } else {
-             src.shift(); column++;
-             pushToken("=", TokenType.Be);
+             pushToken(src.shift()!, TokenType.Assign);
         }
+    } else if (src[0] === "!") {
+        if (src[1] === "=") {
+             src.shift(); src.shift(); column += 2;
+             tokens.push({ value: "!=", type: TokenType.NotEquals, line, column: column - 2 });
+             continue;
+        } else {
+            console.error(`Unrecognized character found in source: ! at line ${line}`);
+            src.shift(); column++;
+        }
+    } else if (src[0] === "<") {
+        pushToken(src.shift()!, TokenType.LessThan);
+    } else if (src[0] === ">") {
+        pushToken(src.shift()!, TokenType.GreaterThan);
     }
-    
-    // 2. Handle Multicharacter Tokens
-    
-    // Comments
+
+    // 2. Handle Comments, Whitespace, and Multi-character Tokens
     else if (src[0] === "#") {
         while(src.length > 0 && (src[0] as string) !== "\n") {
             src.shift();
         }
-    }
-
-    // Newlines
-    else if (src[0] === "\n") {
+    } 
+ else if (src[0] === "\n") {
         line++;
         column = 1;
         src.shift();
-    }
-    
-    // Whitespace
-    else if (/\s/.test(src[0])) {
+        continue;
+    } else if (/\s/.test(src[0])) {
       src.shift();
       column++;
-    } 
-    
-    // Numbers
-    else if (/[0-9]/.test(src[0])) {
+      continue;
+    } else if (/[0-9]/.test(src[0])) {
         let num = "";
         while (src.length > 0 && /[0-9.]/.test(src[0])) {
             num += src.shift();
             column++;
         }
-        pushToken(num, TokenType.Number);
-    }
-    
-    // Strings
-    else if (src[0] === '"') {
-        src.shift(); column++; // Skip opening quote
+        tokens.push({ value: num, type: TokenType.Number, line, column: column - num.length });
+        continue;
+    } else if (src[0] === '"') {
+        const startLine = line;
+        const startColumn = column;
+        src.shift(); column++;
         let str = "";
         while (src.length > 0 && src[0] !== '"') {
-            str += src.shift();
-            column++;
+            if (src[0] === '\\') {
+                src.shift(); column++;
+                const escapeChar = src.shift();
+                column++;
+                if (!escapeChar) break;
+                switch (escapeChar) {
+                    case 'n': str += '\n'; break;
+                    case 'r': str += '\r'; break;
+                    case 't': str += '\t'; break;
+                    case 'b': str += '\b'; break;
+                    case 'f': str += '\f'; break;
+                    case 'v': str += '\v'; break;
+                    case '\\': str += '\\'; break;
+                    case '"': str += '"'; break;
+                    case 'e': str += '\x1b'; break;
+                    case 'x': {
+                        let hex = (src.shift() || "") + (src.shift() || "");
+                        column += 2;
+                        str += String.fromCharCode(parseInt(hex, 16) || 0);
+                        break;
+                    }
+                    default: str += escapeChar; break;
+                }
+            } else {
+                str += src.shift();
+                column++;
+            }
         }
-        src.shift(); column++; // Skip closing quote
-        pushToken(str, TokenType.String);
+        if (src.length > 0 && src[0] === '"') {
+            src.shift(); column++;
+        }
+        tokens.push({ value: str, type: TokenType.String, line: startLine, column: startColumn });
+        continue;
     }
-
-    // Identifiers & Keywords
-    else if (/[a-zA-Z_]/.test(src[0])) {
+ else if (/[a-zA-Z_]/.test(src[0])) {
         let ident = "";
         while (src.length > 0 && /[a-zA-Z0-9_]/.test(src[0])) {
             ident += src.shift();
             column++;
         }
         
-        // Check for multi-word keywords
         const lowerIdent = ident.toLowerCase();
-
-        if (lowerIdent === "divided" && src[0] === " " && src[1] === "b" && src[2] === "y") {
-            // divided by
-            src.splice(0, 3);
-            column += 3;
-            pushToken("divided by", TokenType.DividedBy);
-        } 
-        else if (lowerIdent === "greater" && src.slice(0, 5).join("") === " than") {
-            // greater than
-             src.splice(0, 5);
-             column += 5;
-             pushToken("greater than", TokenType.GreaterThan);
+        const reserved = KEYWORDS[lowerIdent];
+        if (reserved !== undefined) {
+            tokens.push({ value: ident, type: reserved, line, column: column - ident.length });
+        } else {
+            tokens.push({ value: ident, type: TokenType.Identifier, line, column: column - ident.length });
         }
-        else if (lowerIdent === "less" && src.slice(0, 5).join("") === " than") {
-            // less than
-            src.splice(0, 5);
-            column += 5;
-            pushToken("less than", TokenType.LessThan);
-        }
-        else if (lowerIdent === "is" && src.slice(0, 8).join("") === " equal to") {
-             // is equal to (optional)
-             src.splice(0, 8);
-             column += 8;
-             pushToken("is equal to", TokenType.Equals);
-        }
-        else {
-            const reserved = KEYWORDS[lowerIdent];
-            if (reserved !== undefined) {
-                pushToken(ident, reserved);
-            } else {
-                pushToken(ident, TokenType.Identifier);
-            }
-        }
-    } 
-
-    else {
+        continue;
+    } else {
       console.error(`Unrecognized character found in source: ${src[0]} at line ${line}`);
       src.shift(); column++;
     }
+    
+    // Default increment for single char tokens handled by pushToken
+    column++;
   }
   
   tokens.push({ type: TokenType.EOF, value: "EndOfFile", line, column });

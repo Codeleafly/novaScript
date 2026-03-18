@@ -1,0 +1,36 @@
+# tests/03_control_flow.nv
+
+print("--- Control Flow Tests ---")
+
+# If-Else
+let age = 20
+if (age > 18) {
+    print("If condition: PASS")
+} else {
+    print("If condition: FAIL")
+}
+
+# While Loop
+print("While loop counting 0 to 2:")
+let count = 0
+while (count < 3) {
+    print("  count:", count)
+    count = count + 1
+}
+
+# For Loop (Repeat)
+print("For loop (range) 1 to 3:")
+for (i from 1 to 3) {
+    print("  step:", i)
+}
+
+# Nested Blocks
+if (true) {
+    let x = "outer"
+    if (true) {
+        let y = "inner"
+        print("Nested scope access:", x, y)
+    }
+}
+
+print("Control flow structures: SUCCESS")

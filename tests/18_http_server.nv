@@ -1,0 +1,22 @@
+# tests/18_http_server.nv
+
+print("--- HTTP Server Tests ---")
+
+fn handleGet(req, res) {
+    print("Received GET request at /")
+    res.send("Hello from NovaScript Server!")
+}
+
+fn handlePost(req, res) {
+    print("Received POST request at /echo")
+    print("Request body:", req.body)
+    res.send("Echo: " + req.body)
+}
+
+let server = HTTP.createServer()
+
+server.get("/", handleGet)
+server.post("/echo", handlePost)
+
+print("Starting server on port 3000...")
+server.listen(3000)

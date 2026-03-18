@@ -1,0 +1,31 @@
+# tests/02_expressions.nv
+
+print("--- Expression & Operator Tests ---")
+
+# Arithmetic
+print("10 + 5 =", 10 + 5)
+print("10 - 5 =", 10 - 5)
+print("10 * 5 =", 10 * 5)
+print("10 / 2 =", 10 / 2)
+print("10 % 3 =", 10 % 3)
+
+# Comparison (Hybrid)
+print("10 is 10:", 10 is 10)
+print("10 isnt 5:", 10 isnt 5)
+print("10 == 10:", 10 == 10)
+print("10 != 5:", 10 != 5)
+print("10 > 5:", 10 > 5)
+print("10 < 20:", 10 < 20)
+
+# Logical
+print("true and false:", true and false)
+print("true or false:", true or false)
+print("not true:", not true)
+
+# Grouping
+let result = (10 + 5) * 2
+print("(10 + 5) * 2 =", result)
+
+if (result is 30) {
+    print("Operator precedence and grouping: SUCCESS")
+}

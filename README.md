@@ -1,24 +1,71 @@
-# NovaScript v3.0.1-dev
+# NovaScript v4
 
-NovaScript is an English-like programming language built on TypeScript.
+NovaScript is an English-like programming language with a hybrid syntax that balances readability and performance.
 
-## Installation
-To install NovaScript globally and run it from anywhere:
-```bash
-npm install -g novascript@3.0.1-dev
-nova -v
+## Core Features (v4)
+
+- **Hybrid Syntax:** Uses `{}` for blocks, `()` for expressions and function calls.
+- **English Keywords:** `is` (==), `isnt` (!=), `and`, `or`, `not`, `let`, `fn`, `if`, `else`, `while`, `for`, `from`, `to`, `return`, `include`.
+- **Standard Library:** Built-in `Math`, `Sys`, and `File` modules.
+- **Data Structures:** Native support for Objects `{ key = value }` and Arrays `[1, 2, 3]`.
+- **Friendly Errors:** Clear error messages with line numbers and code snippets.
+
+## Syntax Examples
+
+### Variables
+```novascript
+let x = 10
+const pi = 3.14
 ```
 
-## Quick Start
-1. **Run a script:** `nova your_script.nv`
-2. **Interactive REPL:** Simply type `nova` in your terminal.
+### Functions
+```novascript
+fn greet(name) {
+    print("Hello", name)
+}
 
-## Features
-- **Modern REPL:** Stable, colorful, and crash-resistant.
-- **Global Command:** Install once, use everywhere via the `nova` command.
-- **Interactive Input:** Use `let name be call input "Prompt: "`
-- **Library System:** Import other scripts with `import "lib.nv"`.
-- **Professional Errors:** Detailed, context-aware diagnostics.
+fn add(a, b) {
+    return a + b
+}
+```
 
-## Examples
-Check the `examples/` directory in the repo for calculator, loops, and more!
+### Control Flow
+```novascript
+if (age is 18) {
+    print("Welcome!")
+} else {
+    print("Access denied.")
+}
+
+while (count < 5) {
+    print(count)
+    count = count + 1
+}
+
+for (i from 1 to 10) {
+    print(i)
+}
+```
+
+### Standard Library Usage
+```novascript
+let root = Math.sqrt(16)
+print("Root:", root)
+
+let content = File.read("test.txt")
+print("Content:", content)
+
+print("Platform:", Sys.platform)
+```
+
+## Running NovaScript
+
+To run a script:
+```bash
+nova script.nv
+```
+
+To enter interactive mode (REPL):
+```bash
+nova
+```

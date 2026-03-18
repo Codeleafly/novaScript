@@ -1,0 +1,28 @@
+# tests/05_collections.nv
+
+print("--- Objects & Arrays Tests ---")
+
+# Arrays
+let numbers = [1, 2, 3, 4, 5]
+print("Array numbers:", numbers)
+
+# Objects
+let person = {
+    name = "Alice",
+    age = 30,
+    city = "Wonderland"
+}
+print("Person object:", person)
+print("Person name:", person.name)
+print("Person age:", person.age)
+
+# Nested collections
+let data = {
+    id = 101,
+    tags = ["test", "v4", "hybrid"]
+}
+print("Object tags:", data.tags)
+
+if (person.name is "Alice") {
+    print("Collections and property access: SUCCESS")
+}

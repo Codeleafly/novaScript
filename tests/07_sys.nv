@@ -1,0 +1,17 @@
+# tests/07_sys.nv
+
+print("--- Sys Library Tests ---")
+
+print("Sys.platform:", Sys.platform)
+print("Sys.arch:", Sys.arch)
+print("Sys.version:", Sys.version)
+
+let startTime = Sys.time()
+print("Current time (ms):", startTime)
+
+# Test exit (optional, but we'll show it)
+# Sys.exit(0)
+
+if (Sys.platform isnt "") {
+    print("Sys library: SUCCESS")
+}

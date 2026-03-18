@@ -1,0 +1,11 @@
+# tests/10_io.nv
+
+print("--- Interactive I/O Tests ---")
+print("(This test requires user input)")
+
+let name = input("Enter your name: ")
+print("Hello,", name, "!")
+
+let numStr = input("Enter a number to square: ")
+let n = num(numStr)
+print("Square of", n, "is", Math.pow(n, 2))

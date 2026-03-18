@@ -1,0 +1,23 @@
+# tests/15_escape_sequences.nv
+
+print("--- Escape Sequence Tests ---")
+
+# Newline and Tab
+print("Line 1\nLine 2\t(after tab)")
+
+# Backslash and Quotes
+print("This is a backslash: \\")
+print("This is a double quote: \"")
+
+# ANSI Colors (if terminal supports)
+let red = "\e[31m"
+let green = "\e[32m"
+let reset = "\e[0m"
+
+print(red + "This text should be red!" + reset)
+print(green + "This text should be green!" + reset)
+
+# Hexadecimal escape
+print("Hex 41 (A): \x41")
+
+print("\nEscape sequences: SUCCESS")

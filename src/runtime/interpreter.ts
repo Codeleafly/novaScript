@@ -1,14 +1,18 @@
 
 // src/runtime/interpreter.ts
 
-import { NumberVal, RuntimeVal, MK_NULL, MK_NUMBER, MK_BOOL, StringVal, MK_STRING, ObjectVal, FunctionVal, NativeFnVal, ArrayVal, MK_ARRAY, BooleanVal, NullVal } from "./values";
-import { BinaryExpr, Identifier, NodeType, NumericLiteral, Program, Statement, VarDeclaration, AssignmentExpr, ObjectLiteral, CallExpr, FunctionDeclaration, StringLiteral, IfStatement, WhileStatement, ReturnStatement, ArrayLiteral, MemberExpr, ForStatement, ImportStatement } from "../frontend/ast";
+import { NumberVal, RuntimeVal, MK_NULL, MK_NUMBER, MK_BOOL, StringVal, MK_STRING, ObjectVal, FunctionVal, NativeFnVal, ArrayVal, MK_ARRAY, BooleanVal, NullVal, MK_OBJECT } from "./values";
+import { BinaryExpr, Identifier, NodeType, NumericLiteral, Program, Statement, VarDeclaration, AssignmentExpr, ObjectLiteral, CallExpr, FunctionDeclaration, StringLiteral, IfStatement, WhileStatement, ReturnStatement, ArrayLiteral, MemberExpr, ForStatement, ImportStatement, ImportExpr } from "../frontend/ast";
 import * as fs from "fs";
+import * as path from "path";
 import Parser from "../frontend/parser";
-import Environment from "./environment";
+import Environment, { createGlobalEnv } from "./environment";
 import { NovaTypeError, NovaReferenceError, NovaRuntimeError, NovaZeroDivisionError, NovaImportError, ErrorLocation } from "./errors";
 
-class ReturnException extends Error {
+// Module cache to avoid re-evaluating the same module multiple times
+const moduleCache = new Map<string, RuntimeVal>();
+
+export class ReturnException extends Error {
     value: RuntimeVal;
     constructor(value: RuntimeVal) {
         super("Return");
@@ -16,9 +20,13 @@ class ReturnException extends Error {
     }
 }
 
-// We need a way to track location during evaluation. 
-// For now, we'll pass it through or use a simple heuristic.
-const dummyLoc: ErrorLocation = { file: "unknown", line: 0, column: 0 };
+function getLocation(node: Statement): ErrorLocation {
+    return {
+        file: (node as any).file || "unknown",
+        line: node.line || 0,
+        column: node.column || 0
+    };
+}
 
 export function evaluate(astNode: Statement, env: Environment): RuntimeVal {
   switch (astNode.kind) {
@@ -81,11 +89,14 @@ export function evaluate(astNode: Statement, env: Environment): RuntimeVal {
 
     case "ImportStatement":
         return eval_import_statement(astNode as ImportStatement, env);
+    
+    case "ImportExpr":
+        return eval_import_expr(astNode as ImportExpr, env);
 
     default:
       throw new NovaRuntimeError(
         `This AST Node has not yet been setup for interpretation: ${astNode.kind}`,
-        dummyLoc
+        getLocation(astNode)
       );
   }
 }
@@ -109,7 +120,7 @@ function eval_var_declaration(
   try {
       return env.declareVar(declaration.identifier, value, declaration.constant);
   } catch (e: any) {
-      throw new NovaRuntimeError(e.message, dummyLoc);
+      throw new NovaRuntimeError(e.message, getLocation(declaration));
   }
 }
 
@@ -135,7 +146,7 @@ function eval_identifier(
   try {
       return env.lookupVar(ident.symbol);
   } catch (e: any) {
-      throw new NovaReferenceError(e.message, dummyLoc);
+      throw new NovaReferenceError(e.message, getLocation(ident));
   }
 }
 
@@ -143,15 +154,42 @@ function eval_assignment(
   node: AssignmentExpr,
   env: Environment
 ): RuntimeVal {
-  if (node.assignee.kind !== "Identifier") {
-    throw new NovaTypeError(`Invalid LHS inside assignment expr ${node.assignee.kind}`, dummyLoc);
-  }
+  if (node.assignee.kind === "Identifier") {
+    const varname = (node.assignee as Identifier).symbol;
+    const value = evaluate(node.value, env);
+    try {
+        return env.assignVar(varname, value);
+    } catch (e: any) {
+        throw new NovaRuntimeError(e.message, getLocation(node));
+    }
+  } else if (node.assignee.kind === "MemberExpr") {
+    const memberExpr = node.assignee as MemberExpr;
+    const object = evaluate(memberExpr.object, env);
+    
+    if (object.type !== "object") {
+        throw new NovaTypeError("Cannot assign to property of non-object.", getLocation(memberExpr));
+    }
+    
+    let property = "";
+    if (memberExpr.computed) {
+        const propVal = evaluate(memberExpr.property, env);
+        if (propVal.type !== "string") {
+            throw new NovaTypeError("Computed property key must be a string", getLocation(memberExpr));
+        }
+        property = (propVal as StringVal).value;
+    } else {
+        if (memberExpr.property.kind !== "Identifier") {
+            throw new NovaTypeError("Dot notation requires identifier", getLocation(memberExpr));
+        }
+        property = (memberExpr.property as Identifier).symbol;
+    }
 
-  const varname = (node.assignee as Identifier).symbol;
-  try {
-      return env.assignVar(varname, evaluate(node.value, env));
-  } catch (e: any) {
-      throw new NovaRuntimeError(e.message, dummyLoc);
+    const value = evaluate(node.value, env);
+
+    (object as ObjectVal).properties.set(property, value);
+    return value;
+  } else {
+    throw new NovaTypeError(`Invalid LHS inside assignment expr ${node.assignee.kind}`, getLocation(node));
   }
 }
 
@@ -184,22 +222,32 @@ function eval_member_expr(
 ): RuntimeVal {
     const object = evaluate(expr.object, env);
     
-    if (object.type !== "object") {
-        throw new NovaTypeError("Cannot access property of non-object. Found: " + object.type, dummyLoc);
-    }
-    
     let property = "";
     if (expr.computed) {
         const propVal = evaluate(expr.property, env);
         if (propVal.type !== "string") {
-            throw new NovaTypeError("Computed property key must be a string", dummyLoc);
+            throw new NovaTypeError("Computed property key must be a string", getLocation(expr));
         }
         property = (propVal as StringVal).value;
     } else {
         if (expr.property.kind !== "Identifier") {
-            throw new NovaTypeError("Dot notation requires identifier", dummyLoc);
+            throw new NovaTypeError("Dot notation requires identifier", getLocation(expr));
         }
         property = (expr.property as Identifier).symbol;
+    }
+
+    if (object.type === "string") {
+        if (property === "length") return MK_NUMBER((object as StringVal).value.length);
+        throw new NovaTypeError(`String does not have property ${property}`, getLocation(expr));
+    }
+
+    if (object.type === "array") {
+        if (property === "length") return MK_NUMBER((object as ArrayVal).elements.length);
+        throw new NovaTypeError(`Array does not have property ${property}`, getLocation(expr));
+    }
+    
+    if (object.type !== "object") {
+        throw new NovaTypeError("Cannot access property of non-object. Found: " + object.type, getLocation(expr));
     }
     
     const val = (object as ObjectVal).properties.get(property);
@@ -247,29 +295,45 @@ function eval_call_expr(
     return result;
   }
 
-  throw new NovaTypeError(`Cannot call value that is not a function: ${fn.type}`, dummyLoc);
+  throw new NovaTypeError(`Cannot call value that is not a function: ${fn.type}`, getLocation(expr));
 }
 
 function eval_binary_expr(
   binop: BinaryExpr,
   env: Environment
 ): RuntimeVal {
+  if (binop.operator.startsWith("unary_")) {
+      const arg = evaluate(binop.left, env);
+      const op = binop.operator.split("_")[1].toLowerCase();
+      
+      if (op === "not") {
+          if (arg.type !== "boolean") throw new NovaTypeError("not requires boolean", getLocation(binop));
+          return MK_BOOL(!(arg as BooleanVal).value);
+      }
+      if (op === "-") {
+          if (arg.type !== "number") throw new NovaTypeError("- requires number", getLocation(binop));
+          return MK_NUMBER(-(arg as NumberVal).value);
+      }
+  }
+
   const lhs = evaluate(binop.left, env);
   const rhs = evaluate(binop.right, env);
 
-  if (binop.operator === "and" || binop.operator === "or") {
+  const op = binop.operator.toLowerCase();
+
+  if (op === "and" || op === "or") {
       if (lhs.type !== "boolean" || rhs.type !== "boolean") {
-          throw new NovaTypeError(`Logical operators '${binop.operator}' require boolean operands. Found ${lhs.type} and ${rhs.type}.`, dummyLoc);
+          throw new NovaTypeError(`Logical operators '${op}' require boolean operands. Found ${lhs.type} and ${rhs.type}.`, getLocation(binop));
       }
       const l = (lhs as BooleanVal).value;
       const r = (rhs as BooleanVal).value;
-      return MK_BOOL(binop.operator === "and" ? (l && r) : (l || r));
+      return MK_BOOL(op === "and" ? (l && r) : (l || r));
   }
 
-  if (binop.operator === "equals" || binop.operator === "==") {
+  if (op === "is" || op === "==") {
       return MK_BOOL(lhs.type === rhs.type && (lhs as any).value === (rhs as any).value);
   }
-  if (binop.operator === "not equals" || binop.operator === "!=") {
+  if (op === "isnt" || op === "!=") {
       return MK_BOOL(lhs.type !== rhs.type || (lhs as any).value !== (rhs as any).value);
   }
 
@@ -277,11 +341,12 @@ function eval_binary_expr(
     return eval_numeric_binary_expr(
       lhs as NumberVal,
       rhs as NumberVal,
-      binop.operator
+      op,
+      binop
     );
   }
   
-  if (lhs.type == "string" && rhs.type == "string" && (binop.operator === "plus" || binop.operator === "+")) {
+  if (lhs.type == "string" && rhs.type == "string" && op === "+") {
       return MK_STRING((lhs as StringVal).value + (rhs as StringVal).value);
   }
 
@@ -291,25 +356,26 @@ function eval_binary_expr(
 function eval_numeric_binary_expr(
   lhs: NumberVal,
   rhs: NumberVal,
-  operator: string
+  operator: string,
+  node: BinaryExpr
 ): NumberVal | BooleanVal | NullVal {
-  if (operator == "plus" || operator == "+")
+  if (operator == "+")
     return MK_NUMBER(lhs.value + rhs.value);
-  else if (operator == "minus" || operator == "-")
+  else if (operator == "-")
     return MK_NUMBER(lhs.value - rhs.value);
-  else if (operator == "times" || operator == "*")
+  else if (operator == "*")
     return MK_NUMBER(lhs.value * rhs.value);
-  else if (operator == "divided by" || operator == "/") {
+  else if (operator == "/") {
     if (rhs.value === 0) {
-        throw new NovaZeroDivisionError("Division by zero is not allowed.", dummyLoc);
+        throw new NovaZeroDivisionError("Division by zero is not allowed.", getLocation(node));
     }
     return MK_NUMBER(lhs.value / rhs.value);
   }
-  else if (operator == "modulo" || operator == "%")
+  else if (operator == "%")
     return MK_NUMBER(lhs.value % rhs.value);
-  else if (operator == "greater than" || operator == ">")
+  else if (operator == ">")
       return MK_BOOL(lhs.value > rhs.value);
-  else if (operator == "less than" || operator == "<")
+  else if (operator == "<")
       return MK_BOOL(lhs.value < rhs.value);
   else 
       return MK_NULL();
@@ -368,7 +434,7 @@ function eval_for_statement(
     const endVal = evaluate(stmt.end, env);
     
     if (startVal.type !== "number" || endVal.type !== "number") {
-        throw new NovaTypeError("Repeat loop range must be numbers", dummyLoc);
+        throw new NovaTypeError("Repeat loop range must be numbers", getLocation(stmt));
     }
     
     let lastVal: RuntimeVal = MK_NULL();
@@ -391,20 +457,64 @@ function eval_for_statement(
     return lastVal;
 }
 
+function eval_module(modulePath: string, parentEnv: Environment): RuntimeVal {
+    const absolutePath = path.resolve(modulePath);
+    if (moduleCache.has(absolutePath)) {
+        return moduleCache.get(absolutePath)!;
+    }
+
+    if (!fs.existsSync(absolutePath)) {
+        throw new Error(`Cannot find module: ${modulePath}`);
+    }
+    
+    const source = fs.readFileSync(absolutePath, "utf-8");
+    const parser = new Parser();
+    const program = parser.produceAST(source, absolutePath);
+    
+    // Create a new environment for the module
+    // It should have access to global built-ins but its own local scope
+    // We can simulate this by having its parent be the global environment
+    
+    // To find global env, we traverse up from parentEnv
+    let globalEnv = parentEnv;
+    while ((globalEnv as any).parent) {
+        globalEnv = (globalEnv as any).parent;
+    }
+    
+    const moduleEnv = new Environment(globalEnv);
+    const exports = MK_OBJECT(new Map());
+    moduleEnv.declareVar("exports", exports, false);
+    
+    try {
+        evaluate(program, moduleEnv);
+    } catch (e) {
+        throw e;
+    }
+    
+    const result = moduleEnv.lookupVar("exports");
+    moduleCache.set(absolutePath, result);
+    return result;
+}
+
 function eval_import_statement(
     stmt: ImportStatement,
     env: Environment
 ): RuntimeVal {
-    const modulePath = stmt.moduleName;
-    if (!fs.existsSync(modulePath)) {
-        throw new NovaImportError(`Cannot find module: ${modulePath}`, dummyLoc);
+    try {
+        eval_module(stmt.moduleName, env);
+        return MK_NULL();
+    } catch (e: any) {
+        throw new NovaImportError(e.message, getLocation(stmt));
     }
-    
-    const source = fs.readFileSync(modulePath, "utf-8");
-    const parser = new Parser();
-    const program = parser.produceAST(source, modulePath);
-    
-    evaluate(program, env);
-    
-    return MK_NULL();
+}
+
+function eval_import_expr(
+    expr: ImportExpr,
+    env: Environment
+): RuntimeVal {
+    try {
+        return eval_module(expr.moduleName, env);
+    } catch (e: any) {
+        throw new NovaImportError(e.message, getLocation(expr));
+    }
 }

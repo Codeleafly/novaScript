@@ -1,0 +1,1 @@
+Testing NovaScript File I/O v4

@@ -1,0 +1,33 @@
+# tests/17_http_client.nv
+
+print("--- HTTP Client Tests ---")
+
+# 1. GET Request
+print("Sending GET request to JSONPlaceholder...")
+let res = HTTP.get("https://jsonplaceholder.typicode.com/posts/1")
+
+if (res isnt null) {
+    print("GET Status:", res.status)
+    # Basic check if data contains "userId"
+    print("GET Response data snippet:", res.data)
+    if (res.status is 200) {
+        print("HTTP GET: SUCCESS")
+    }
+} else {
+    print("HTTP GET: FAIL (Response is null)")
+}
+
+# 2. POST Request
+print("\nSending POST request to JSONPlaceholder...")
+let postData = "{\"title\": \"foo\", \"body\": \"bar\", \"userId\": 1}"
+let postRes = HTTP.post("https://jsonplaceholder.typicode.com/posts", postData)
+
+if (postRes isnt null) {
+    print("POST Status:", postRes.status)
+    print("POST Response data:", postRes.data)
+    if (postRes.status is 201) {
+        print("HTTP POST: SUCCESS")
+    }
+} else {
+    print("HTTP POST: FAIL (Response is null)")
+}

@@ -10,6 +10,7 @@ export type NodeType =
   | "ForStatement"
   | "ReturnStatement"
   | "ImportStatement"
+  | "ImportExpr"
   | "AssignmentExpr"
   | "BinaryExpr"
   | "CallExpr"
@@ -23,6 +24,8 @@ export type NodeType =
 
 export interface Statement {
   kind: NodeType;
+  line?: number;
+  column?: number;
 }
 
 export interface Program extends Statement {
@@ -72,6 +75,11 @@ export interface ReturnStatement extends Statement {
 
 export interface ImportStatement extends Statement {
     kind: "ImportStatement";
+    moduleName: string;
+}
+
+export interface ImportExpr extends Expression {
+    kind: "ImportExpr";
     moduleName: string;
 }
 

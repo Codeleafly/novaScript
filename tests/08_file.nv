@@ -1,0 +1,22 @@
+# tests/08_file.nv
+
+print("--- File Library Tests ---")
+
+let filename = "tests/test_data.txt"
+let message = "Testing NovaScript File I/O v4"
+
+print("Writing to file:", filename)
+File.write(filename, message)
+
+if (File.exists(filename)) {
+    print("File exists, reading back...")
+    let readBack = File.read(filename)
+    print("Read message:", readBack)
+    if (readBack is message) {
+        print("File I/O SUCCESS!")
+    } else {
+        print("File I/O FAILURE: Content mismatch")
+    }
+} else {
+    print("File I/O FAILURE: File not created")
+}
