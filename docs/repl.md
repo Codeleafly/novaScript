@@ -1,4 +1,4 @@
-# NovaScript REPL Guide (v5.5.0)
+# NovaScript REPL Guide (v5.5.5)
 
 The NovaScript REPL is a production-grade interactive shell for exploring and testing the language in real time.
 
@@ -8,14 +8,14 @@ nova          # open REPL
 nova repl     # explicit REPL command
 ```
 
-## REPL Commands
 | Command | Description |
 |---------|-------------|
 | `.help` | Show this command reference |
-| `.editor` | Enter multi-line editor mode (type `.run` to execute) |
+| `.editor` | Enter multi-line editor mode (type `.run` to execute, `.cancel` to abort) |
 | `.clear` | Clear the terminal screen |
-| `.reset` | Reset all variables and restart environment |
+| `.reset` | Reset the environment (clears all declared variables) |
 | `.exit` | Exit the REPL |
+| `exit` | Shorthand to exit the REPL |
 
 ## Multi-Line Mode
 
@@ -51,13 +51,13 @@ nova ❯ .editor
 | Command | Description |
 |---------|-------------|
 | `nova` | Start the interactive REPL |
+| `nova repl` | Explicitly start the REPL |
 | `nova run <file.nv>` | Run a NovaScript file |
-| `nova <file.nv>` | Shorthand run (backward compatible) |
+| `nova <file.nv>` | Shorthand run (supports .nv, .ns, .nova) |
 | `nova version` | Print the NovaScript version |
 | `nova help` | Print full CLI help |
-| `nova --version` | Alias for `nova version` |
-| `nova -v` | Alias for `nova version` |
-| `nova -h` | Alias for `nova help` |
+| `nova -v`, `-V` | Alias for `nova version` |
+| `nova -h`, `-H` | Alias for `nova help` |
 
 ## Expression Results
 Any expression that returns a non-null value will be shown with a `⟵` arrow:

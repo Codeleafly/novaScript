@@ -1,4 +1,4 @@
-# NovaScript v5.5.0 Standard Library
+# NovaScript v5.5.5 Standard Library
 
 NovaScript 5.5.0 brings a production-grade standard library to enable full-scale application development, including complex logical parsing, server handling, and data manipulation.
 
@@ -30,6 +30,8 @@ The global `String` object offers powerful text manipulation functions:
 - `Array.slice(arr, start, [end])`: Returns a sub-array.
 - `Array.reverse(arr)`: Reverses the array in place and returns it.
 - `Array.includes(arr, val)` / `Array.indexOf(arr, val)`.
+- `Array.map(arr, fn)`: Returns a new array with results of calling `fn` on every element.
+- `Array.filter(arr, fn)`: Returns a new array with elements that pass the test in `fn`.
 
 ## `Regex` Module
 - `Regex.test(pattern, str, [flags])`: Returns boolean if pattern matches.
@@ -68,6 +70,9 @@ Access operating system details and execute commands:
 - `Sys.env(key)`: Retrieves environment variables.
 - `Sys.exec(command)`: Executes a shell command synchronously.
 - `Sys.exit(code)`: Exits the process.
+- `Sys.getType(val)`: Returns the internal type of a value as a string.
+- `Sys.eval(code)`: Dynamically evaluates a string of NovaScript code.
+- `Sys.args`: An array containing command-line arguments.
 
 ## `FS` Module (FileSystem)
 Cross-platform file manipulation:

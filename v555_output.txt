@@ -1,0 +1,29 @@
+--- Testing Operators ---
+2 ** 3 = 8
+true && false = false
+true || false = true
+!true = false
+5 & 3 = 1
+5 | 3 = 7
+
+--- Testing Shorthand Assignment ---
+10 += 5 -> 15
+15 -= 3 -> 12
+
+--- Testing Switch/Case ---
+Status is success!
+
+--- Testing Try/Catch/Finally ---
+In try block
+Caught error: Something went wrong
+Finally block executed
+
+--- Testing Async/Await ---
+Start main
+
+--- Testing Loop Control (Break/Continue) ---
+  Fetching data...
+Result: Data received
+End main
+Loop i = 1
+Loop i = 3

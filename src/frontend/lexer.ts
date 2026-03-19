@@ -28,15 +28,28 @@ export enum TokenType {
   
   // Symbols
   Assign,      // =
+  PlusEquals,  // +=
+  MinusEquals, // -=
   Equals,      // ==
   NotEquals,   // !=
   LessThan,    // <
+  LessEquals,  // <=
   GreaterThan, // >
+  GreaterEquals,// >=
   Plus,        // +
   Minus,       // -
   Times,       // *
+  Power,       // **
   Slash,       // /
   Percent,     // %
+  Ampersand,   // &
+  Pipe,        // |
+  Caret,       // ^
+  ShiftLeft,   // <<
+  ShiftRight,  // >>
+  AndLogic,    // &&
+  OrLogic,     // ||
+  NotLogic,    // !
   
   OpenParen,   // (
   CloseParen,  // )
@@ -46,6 +59,19 @@ export enum TokenType {
   CloseBracket,// ]
   Comma,
   Dot,
+
+  // Keywords
+  Switch,
+  Case,
+  Default,
+  Try,
+  Catch,
+  Finally,
+  Throw,
+  Async,
+  Await,
+  Break,
+  Continue,
   
   // Special
   EOF,
@@ -69,6 +95,17 @@ const KEYWORDS: Record<string, TokenType> = {
   "not": TokenType.Not,
   "is": TokenType.Is,
   "isnt": TokenType.Isnt,
+  "switch": TokenType.Switch,
+  "case": TokenType.Case,
+  "default": TokenType.Default,
+  "try": TokenType.Try,
+  "catch": TokenType.Catch,
+  "finally": TokenType.Finally,
+  "throw": TokenType.Throw,
+  "async": TokenType.Async,
+  "await": TokenType.Await,
+  "break": TokenType.Break,
+  "continue": TokenType.Continue,
 };
 
 export interface Token {
@@ -107,11 +144,29 @@ export function tokenize(sourceCode: string): Token[] {
     } else if (src[0] === ".") {
       pushToken(src.shift()!, TokenType.Dot);
     } else if (src[0] === "+") {
-      pushToken(src.shift()!, TokenType.Plus);
+        if (src[1] === "=") {
+             src.shift(); src.shift(); column += 2;
+             tokens.push({ value: "+=", type: TokenType.PlusEquals, line, column: column - 2 });
+             continue;
+        } else {
+             pushToken(src.shift()!, TokenType.Plus);
+        }
     } else if (src[0] === "-") {
-      pushToken(src.shift()!, TokenType.Minus);
+        if (src[1] === "=") {
+             src.shift(); src.shift(); column += 2;
+             tokens.push({ value: "-=", type: TokenType.MinusEquals, line, column: column - 2 });
+             continue;
+        } else {
+             pushToken(src.shift()!, TokenType.Minus);
+        }
     } else if (src[0] === "*") {
-      pushToken(src.shift()!, TokenType.Times);
+        if (src[1] === "*") {
+             src.shift(); src.shift(); column += 2;
+             tokens.push({ value: "**", type: TokenType.Power, line, column: column - 2 });
+             continue;
+        } else {
+             pushToken(src.shift()!, TokenType.Times);
+        }
     } else if (src[0] === "/") {
       pushToken(src.shift()!, TokenType.Slash);
     } else if (src[0] === "%") {
@@ -130,13 +185,50 @@ export function tokenize(sourceCode: string): Token[] {
              tokens.push({ value: "!=", type: TokenType.NotEquals, line, column: column - 2 });
              continue;
         } else {
-            console.error(`Unrecognized character found in source: ! at line ${line}`);
-            src.shift(); column++;
+            pushToken(src.shift()!, TokenType.NotLogic);
         }
     } else if (src[0] === "<") {
-        pushToken(src.shift()!, TokenType.LessThan);
+        if (src[1] === "=") {
+             src.shift(); src.shift(); column += 2;
+             tokens.push({ value: "<=", type: TokenType.LessEquals, line, column: column - 2 });
+             continue;
+        } else if (src[1] === "<") {
+             src.shift(); src.shift(); column += 2;
+             tokens.push({ value: "<<", type: TokenType.ShiftLeft, line, column: column - 2 });
+             continue;
+        } else {
+             pushToken(src.shift()!, TokenType.LessThan);
+        }
     } else if (src[0] === ">") {
-        pushToken(src.shift()!, TokenType.GreaterThan);
+        if (src[1] === "=") {
+             src.shift(); src.shift(); column += 2;
+             tokens.push({ value: ">=", type: TokenType.GreaterEquals, line, column: column - 2 });
+             continue;
+        } else if (src[1] === ">") {
+             src.shift(); src.shift(); column += 2;
+             tokens.push({ value: ">>", type: TokenType.ShiftRight, line, column: column - 2 });
+             continue;
+        } else {
+             pushToken(src.shift()!, TokenType.GreaterThan);
+        }
+    } else if (src[0] === "&") {
+        if (src[1] === "&") {
+             src.shift(); src.shift(); column += 2;
+             tokens.push({ value: "&&", type: TokenType.AndLogic, line, column: column - 2 });
+             continue;
+        } else {
+             pushToken(src.shift()!, TokenType.Ampersand);
+        }
+    } else if (src[0] === "|") {
+        if (src[1] === "|") {
+             src.shift(); src.shift(); column += 2;
+             tokens.push({ value: "||", type: TokenType.OrLogic, line, column: column - 2 });
+             continue;
+        } else {
+             pushToken(src.shift()!, TokenType.Pipe);
+        }
+    } else if (src[0] === "^") {
+        pushToken(src.shift()!, TokenType.Caret);
     }
 
     // 2. Handle Comments, Whitespace, and Multi-character Tokens

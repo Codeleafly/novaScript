@@ -1,13 +1,23 @@
 
 // src/runtime/interpreter.ts
 
-import { NumberVal, RuntimeVal, MK_NULL, MK_NUMBER, MK_BOOL, StringVal, MK_STRING, ObjectVal, FunctionVal, NativeFnVal, ArrayVal, MK_ARRAY, BooleanVal, NullVal, MK_OBJECT } from "./values";
-import { BinaryExpr, Identifier, NodeType, NumericLiteral, Program, Statement, VarDeclaration, AssignmentExpr, ObjectLiteral, CallExpr, FunctionDeclaration, StringLiteral, IfStatement, WhileStatement, ReturnStatement, ArrayLiteral, MemberExpr, ForStatement, ImportStatement, ImportExpr, GlobalDeclaration } from "../frontend/ast";
+import { NumberVal, RuntimeVal, MK_NULL, MK_NUMBER, MK_BOOL, StringVal, MK_STRING, ObjectVal, FunctionVal, NativeFnVal, ArrayVal, MK_ARRAY, BooleanVal, NullVal, MK_OBJECT, PromiseVal, MK_PROMISE } from "./values";
+import { 
+    BinaryExpr, Identifier, NodeType, NumericLiteral, Program, Statement, 
+    VarDeclaration, AssignmentExpr, ObjectLiteral, CallExpr, FunctionDeclaration, 
+    StringLiteral, IfStatement, WhileStatement, ReturnStatement, ArrayLiteral, 
+    MemberExpr, ForStatement, ImportStatement, ImportExpr, GlobalDeclaration,
+    SwitchStatement, CaseStatement, TryCatchStatement, ThrowStatement,
+    BreakStatement, ContinueStatement, AwaitExpr
+} from "../frontend/ast";
 import * as fs from "fs";
 import * as path from "path";
 import Parser from "../frontend/parser";
 import Environment, { createGlobalEnv } from "./environment";
-import { NovaTypeError, NovaReferenceError, NovaRuntimeError, NovaZeroDivisionError, NovaImportError, ErrorLocation } from "./errors";
+import { 
+    NovaTypeError, NovaReferenceError, NovaRuntimeError, NovaZeroDivisionError, 
+    NovaImportError, ErrorLocation 
+} from "./errors";
 
 // Module cache to avoid re-evaluating the same module multiple times
 const moduleCache = new Map<string, RuntimeVal>();
@@ -20,6 +30,18 @@ export class ReturnException extends Error {
     }
 }
 
+export class BreakException extends Error {
+    constructor() {
+        super("Break");
+    }
+}
+
+export class ContinueException extends Error {
+    constructor() {
+        super("Continue");
+    }
+}
+
 function getLocation(node: Statement): ErrorLocation {
     return {
         file: (node as any).file || "unknown",
@@ -28,7 +50,7 @@ function getLocation(node: Statement): ErrorLocation {
     };
 }
 
-export function evaluate(astNode: Statement, env: Environment): RuntimeVal {
+export async function evaluate(astNode: Statement, env: Environment): Promise<RuntimeVal> {
   switch (astNode.kind) {
     case "NumericLiteral":
       return {
@@ -46,55 +68,81 @@ export function evaluate(astNode: Statement, env: Environment): RuntimeVal {
       return eval_identifier(astNode as Identifier, env);
 
     case "ObjectLiteral":
-      return eval_object_expr(astNode as ObjectLiteral, env);
+      return await eval_object_expr(astNode as ObjectLiteral, env);
       
     case "ArrayLiteral":
-        return eval_array_expr(astNode as ArrayLiteral, env);
+        return await eval_array_expr(astNode as ArrayLiteral, env);
 
     case "MemberExpr":
-        return eval_member_expr(astNode as MemberExpr, env);
+        return await eval_member_expr(astNode as MemberExpr, env);
 
     case "CallExpr":
-      return eval_call_expr(astNode as CallExpr, env);
+      return await eval_call_expr(astNode as CallExpr, env);
 
     case "AssignmentExpr":
-      return eval_assignment(astNode as AssignmentExpr, env);
+      return await eval_assignment(astNode as AssignmentExpr, env);
 
     case "BinaryExpr":
-      return eval_binary_expr(astNode as BinaryExpr, env);
+      return await eval_binary_expr(astNode as BinaryExpr, env);
 
     case "Program":
-      return eval_program(astNode as Program, env);
+      return await eval_program(astNode as Program, env);
 
     case "VarDeclaration":
-      return eval_var_declaration(astNode as VarDeclaration, env);
+      return await eval_var_declaration(astNode as VarDeclaration, env);
     
     case "GlobalDeclaration":
-      return eval_global_declaration(astNode as GlobalDeclaration, env);
+      return await eval_global_declaration(astNode as GlobalDeclaration, env);
     
     case "FunctionDeclaration":
       return eval_function_declaration(astNode as FunctionDeclaration, env);
       
     case "IfStatement":
-        return eval_if_statement(astNode as IfStatement, env);
+        return await eval_if_statement(astNode as IfStatement, env);
 
     case "WhileStatement":
-        return eval_while_statement(astNode as WhileStatement, env);
+        return await eval_while_statement(astNode as WhileStatement, env);
         
     case "ForStatement":
-        return eval_for_statement(astNode as ForStatement, env);
+        return await eval_for_statement(astNode as ForStatement, env);
+
+    case "SwitchStatement":
+        return await eval_switch_statement(astNode as SwitchStatement, env);
+
+    case "TryCatchStatement":
+        return await eval_try_catch_statement(astNode as TryCatchStatement, env);
         
     case "ReturnStatement":
         const returnVal = (astNode as ReturnStatement).value 
-            ? evaluate((astNode as ReturnStatement).value!, env) 
+            ? await evaluate((astNode as ReturnStatement).value!, env) 
             : MK_NULL();
         throw new ReturnException(returnVal);
 
+    case "ThrowStatement":
+        const throwVal = await evaluate((astNode as any).argument, env);
+        throw throwVal; // Throwing the RuntimeVal directly for catch to handle
+
+    case "BreakStatement":
+        throw new BreakException();
+    
+    case "ContinueStatement":
+        throw new ContinueException();
+
+    case "AwaitExpr":
+        const valToAwait = await evaluate((astNode as any).argument, env);
+        // If it's a native Promise (from async fn or native), await it.
+        // For simplicity, we assume the environment might contain promises if they come from JS interop,
+        // but for Nova async fns, they will return a "promise-wrapped" RuntimeVal.
+        if (valToAwait && (valToAwait as any).promise) {
+            return await (valToAwait as any).promise;
+        }
+        return valToAwait;
+
     case "ImportStatement":
-        return eval_import_statement(astNode as ImportStatement, env);
+        return await eval_import_statement(astNode as ImportStatement, env);
     
     case "ImportExpr":
-        return eval_import_expr(astNode as ImportExpr, env);
+        return await eval_import_expr(astNode as ImportExpr, env);
 
     default:
       throw new NovaRuntimeError(
@@ -104,20 +152,20 @@ export function evaluate(astNode: Statement, env: Environment): RuntimeVal {
   }
 }
 
-function eval_program(program: Program, env: Environment): RuntimeVal {
+async function eval_program(program: Program, env: Environment): Promise<RuntimeVal> {
   let lastEvaluated: RuntimeVal = MK_NULL();
   for (const statement of program.body) {
-    lastEvaluated = evaluate(statement, env);
+    lastEvaluated = await evaluate(statement, env);
   }
   return lastEvaluated;
 }
 
-function eval_var_declaration(
+async function eval_var_declaration(
   declaration: VarDeclaration,
   env: Environment
-): RuntimeVal {
+): Promise<RuntimeVal> {
   const value = declaration.value
-    ? evaluate(declaration.value, env)
+    ? await evaluate(declaration.value, env)
     : MK_NULL();
 
   try {
@@ -127,12 +175,12 @@ function eval_var_declaration(
   }
 }
 
-function eval_global_declaration(
+async function eval_global_declaration(
   declaration: GlobalDeclaration,
   env: Environment
-): RuntimeVal {
+): Promise<RuntimeVal> {
   const value = declaration.value
-    ? evaluate(declaration.value, env)
+    ? await evaluate(declaration.value, env)
     : MK_NULL();
   try {
       return env.declareGlobal(declaration.identifier, value, declaration.constant);
@@ -151,6 +199,7 @@ function eval_function_declaration(
     parameters: declaration.parameters,
     declarationEnv: env,
     body: declaration.body,
+    async: declaration.async,
   } as FunctionVal;
 
   return env.declareVar(declaration.name, fn, true);
@@ -167,13 +216,13 @@ function eval_identifier(
   }
 }
 
-function eval_assignment(
+async function eval_assignment(
   node: AssignmentExpr,
   env: Environment
-): RuntimeVal {
+): Promise<RuntimeVal> {
   if (node.assignee.kind === "Identifier") {
     const varname = (node.assignee as Identifier).symbol;
-    const value = evaluate(node.value, env);
+    const value = await evaluate(node.value, env);
     try {
         return env.assignVar(varname, value);
     } catch (e: any) {
@@ -181,7 +230,7 @@ function eval_assignment(
     }
   } else if (node.assignee.kind === "MemberExpr") {
     const memberExpr = node.assignee as MemberExpr;
-    const object = evaluate(memberExpr.object, env);
+    const object = await evaluate(memberExpr.object, env);
     
     if (object.type !== "object") {
         throw new NovaTypeError("Cannot assign to property of non-object.", getLocation(memberExpr));
@@ -189,7 +238,7 @@ function eval_assignment(
     
     let property = "";
     if (memberExpr.computed) {
-        const propVal = evaluate(memberExpr.property, env);
+        const propVal = await evaluate(memberExpr.property, env);
         if (propVal.type !== "string") {
             throw new NovaTypeError("Computed property key must be a string", getLocation(memberExpr));
         }
@@ -201,7 +250,7 @@ function eval_assignment(
         property = (memberExpr.property as Identifier).symbol;
     }
 
-    const value = evaluate(node.value, env);
+    const value = await evaluate(node.value, env);
 
     (object as ObjectVal).properties.set(property, value);
     return value;
@@ -210,40 +259,43 @@ function eval_assignment(
   }
 }
 
-function eval_object_expr(
+async function eval_object_expr(
   obj: ObjectLiteral,
   env: Environment
-): RuntimeVal {
+): Promise<RuntimeVal> {
   const object = { type: "object", properties: new Map() } as ObjectVal;
   for (const { key, value } of obj.properties) {
     const runtimeVal = (value == undefined)
       ? env.lookupVar(key)
-      : evaluate(value, env);
+      : await evaluate(value, env);
 
     object.properties.set(key, runtimeVal);
   }
   return object;
 }
 
-function eval_array_expr(
+async function eval_array_expr(
     arr: ArrayLiteral,
     env: Environment
-): RuntimeVal {
-    const elements = arr.elements.map(element => evaluate(element, env));
+): Promise<RuntimeVal> {
+    const elements: RuntimeVal[] = [];
+    for (const element of arr.elements) {
+        elements.push(await evaluate(element, env));
+    }
     return MK_ARRAY(elements);
 }
 
-function eval_member_expr(
+async function eval_member_expr(
     expr: MemberExpr,
     env: Environment
-): RuntimeVal {
-    const object = evaluate(expr.object, env);
+): Promise<RuntimeVal> {
+    const object = await evaluate(expr.object, env);
     
     let property = "";
     let numericIndex = -1;
 
     if (expr.computed) {
-        const propVal = evaluate(expr.property, env);
+        const propVal = await evaluate(expr.property, env);
         if (propVal.type === "number") {
             numericIndex = (propVal as NumberVal).value;
         } else if (propVal.type === "string") {
@@ -284,58 +336,70 @@ function eval_member_expr(
     return val;
 }
 
-function eval_call_expr(
+async function eval_call_expr(
   expr: CallExpr,
   env: Environment
-): RuntimeVal {
-  const args = expr.args.map((arg) => evaluate(arg, env));
-  const fn = evaluate(expr.caller, env);
+): Promise<RuntimeVal> {
+  const args: RuntimeVal[] = [];
+  for (const arg of expr.args) {
+      args.push(await evaluate(arg, env));
+  }
+  const fn = await evaluate(expr.caller, env);
 
   if (fn.type == "native-fn") {
-    const result = (fn as NativeFnVal).call(args, env);
-    return result;
+    return (fn as NativeFnVal).call(args, env);
   }
 
   if (fn.type == "function") {
     const func = fn as FunctionVal;
-    const scope = new Environment(func.declarationEnv, "function"); // function scope
-
-    for (let i = 0; i < func.parameters.length; i++) {
-      const varname = func.parameters[i];
-      scope.declareVar(varname, args[i] || MK_NULL(), false);
-    }
-
-    let result: RuntimeVal = MK_NULL();
     
-    try {
-        for (const stmt of func.body) {
-            result = evaluate(stmt, scope);
+    // Internal execution function to handle both sync and async
+    const executeBody = async () => {
+        const scope = new Environment(func.declarationEnv, "function");
+        for (let i = 0; i < func.parameters.length; i++) {
+          const varname = func.parameters[i];
+          scope.declareVar(varname, args[i] || MK_NULL(), false);
         }
-    } catch (e) {
-        if (e instanceof ReturnException) {
-            result = e.value;
-        } else {
-            throw e;
+
+        let result: RuntimeVal = MK_NULL();
+        try {
+            for (const stmt of func.body) {
+                result = await evaluate(stmt, scope);
+            }
+        } catch (e) {
+            if (e instanceof ReturnException) {
+                result = e.value;
+            } else {
+                throw e;
+            }
         }
+        return result;
+    };
+
+    if (func.async) {
+        return MK_PROMISE(executeBody());
+    } else {
+        return await executeBody();
     }
-    
-    return result;
   }
 
   throw new NovaTypeError(`Cannot call value that is not a function: ${fn.type}`, getLocation(expr));
 }
 
-function eval_binary_expr(
+async function eval_binary_expr(
   binop: BinaryExpr,
   env: Environment
-): RuntimeVal {
+): Promise<RuntimeVal> {
   if (binop.operator.startsWith("unary_")) {
-      const arg = evaluate(binop.left, env);
+      const arg = await evaluate(binop.left, env);
       const op = binop.operator.split("_")[1].toLowerCase();
       
-      if (op === "not") {
-          if (arg.type !== "boolean") throw new NovaTypeError("not requires boolean", getLocation(binop));
-          return MK_BOOL(!(arg as BooleanVal).value);
+      if (op === "not" || op === "!") {
+          // Flexible truthiness for !
+          if (arg.type === "boolean") return MK_BOOL(!(arg as BooleanVal).value);
+          if (arg.type === "null") return MK_BOOL(true);
+          if (arg.type === "number") return MK_BOOL((arg as NumberVal).value === 0);
+          return MK_BOOL(false);
       }
       if (op === "-") {
           if (arg.type !== "number") throw new NovaTypeError("- requires number", getLocation(binop));
@@ -343,19 +407,27 @@ function eval_binary_expr(
       }
   }
 
-  const lhs = evaluate(binop.left, env);
-  const rhs = evaluate(binop.right, env);
-
+  // Short-circuiting for logical operators
   const op = binop.operator.toLowerCase();
-
-  if (op === "and" || op === "or") {
-      if (lhs.type !== "boolean" || rhs.type !== "boolean") {
-          throw new NovaTypeError(`Logical operators '${op}' require boolean operands. Found ${lhs.type} and ${rhs.type}.`, getLocation(binop));
-      }
-      const l = (lhs as BooleanVal).value;
-      const r = (rhs as BooleanVal).value;
-      return MK_BOOL(op === "and" ? (l && r) : (l || r));
+  if (op === "and" || op === "&&") {
+      const lhs = await evaluate(binop.left, env);
+      if (lhs.type !== "boolean") throw new NovaTypeError("&& requires boolean", getLocation(binop));
+      if (!(lhs as BooleanVal).value) return MK_BOOL(false);
+      const rhs = await evaluate(binop.right, env);
+      if (rhs.type !== "boolean") throw new NovaTypeError("&& requires boolean", getLocation(binop));
+      return MK_BOOL((rhs as BooleanVal).value);
   }
+  if (op === "or" || op === "||") {
+      const lhs = await evaluate(binop.left, env);
+      if (lhs.type !== "boolean") throw new NovaTypeError("|| requires boolean", getLocation(binop));
+      if ((lhs as BooleanVal).value) return MK_BOOL(true);
+      const rhs = await evaluate(binop.right, env);
+      if (rhs.type !== "boolean") throw new NovaTypeError("|| requires boolean", getLocation(binop));
+      return MK_BOOL((rhs as BooleanVal).value);
+  }
+
+  const lhs = await evaluate(binop.left, env);
+  const rhs = await evaluate(binop.right, env);
 
   if (op === "is" || op === "==") {
       return MK_BOOL(lhs.type === rhs.type && (lhs as any).value === (rhs as any).value);
@@ -386,78 +458,88 @@ function eval_numeric_binary_expr(
   operator: string,
   node: BinaryExpr
 ): NumberVal | BooleanVal | NullVal {
-  if (operator == "+")
-    return MK_NUMBER(lhs.value + rhs.value);
-  else if (operator == "-")
-    return MK_NUMBER(lhs.value - rhs.value);
-  else if (operator == "*")
-    return MK_NUMBER(lhs.value * rhs.value);
-  else if (operator == "/") {
-    if (rhs.value === 0) {
-        throw new NovaZeroDivisionError("Division by zero is not allowed.", getLocation(node));
-    }
-    return MK_NUMBER(lhs.value / rhs.value);
+  const l = lhs.value;
+  const r = rhs.value;
+
+  switch (operator) {
+      case "+": return MK_NUMBER(l + r);
+      case "-": return MK_NUMBER(l - r);
+      case "*": return MK_NUMBER(l * r);
+      case "/":
+          if (r === 0) throw new NovaZeroDivisionError("Division by zero", getLocation(node));
+          return MK_NUMBER(l / r);
+      case "%": return MK_NUMBER(l % r);
+      case "**": return MK_NUMBER(Math.pow(l, r));
+      case ">": return MK_BOOL(l > r);
+      case "<": return MK_BOOL(l < r);
+      case ">=": return MK_BOOL(l >= r);
+      case "<=": return MK_BOOL(l <= r);
+      // Bitwise
+      case "&": return MK_NUMBER(l & r);
+      case "|": return MK_NUMBER(l | r);
+      case "^": return MK_NUMBER(l ^ r);
+      case "<<": return MK_NUMBER(l << r);
+      case ">>": return MK_NUMBER(l >> r);
+      default: return MK_NULL();
   }
-  else if (operator == "%")
-    return MK_NUMBER(lhs.value % rhs.value);
-  else if (operator == ">")
-      return MK_BOOL(lhs.value > rhs.value);
-  else if (operator == "<")
-      return MK_BOOL(lhs.value < rhs.value);
-  else 
-      return MK_NULL();
 }
 
-function eval_if_statement(
+async function eval_if_statement(
     stmt: IfStatement,
     env: Environment
-): RuntimeVal {
-    const condition = evaluate(stmt.condition, env);
+): Promise<RuntimeVal> {
+    const condition = await evaluate(stmt.condition, env);
     
     if ((condition as BooleanVal).value === true) {
         const scope = new Environment(env, "block");
         let lastVal: RuntimeVal = MK_NULL();
         for (const s of stmt.thenBranch) {
-            lastVal = evaluate(s, scope);
+            lastVal = await evaluate(s, scope);
         }
         return lastVal;
     } else if (stmt.elseBranch) {
         const scope = new Environment(env, "block");
         let lastVal: RuntimeVal = MK_NULL();
         for (const s of stmt.elseBranch) {
-            lastVal = evaluate(s, scope);
+            lastVal = await evaluate(s, scope);
         }
         return lastVal;
     }
     return MK_NULL();
 }
 
-function eval_while_statement(
+async function eval_while_statement(
     stmt: WhileStatement,
     env: Environment
-): RuntimeVal {
+): Promise<RuntimeVal> {
     let lastVal: RuntimeVal = MK_NULL();
     
     while (true) {
-        const condition = evaluate(stmt.condition, env);
+        const condition = await evaluate(stmt.condition, env);
         if (condition.type !== "boolean" || (condition as BooleanVal).value !== true) {
             break;
         }
         const scope = new Environment(env, "block");
-        for (const s of stmt.body) {
-            lastVal = evaluate(s, scope);
+        try {
+            for (const s of stmt.body) {
+                lastVal = await evaluate(s, scope);
+            }
+        } catch (e) {
+            if (e instanceof BreakException) break;
+            if (e instanceof ContinueException) continue;
+            throw e;
         }
     }
     
     return lastVal;
 }
 
-function eval_for_statement(
+async function eval_for_statement(
     stmt: ForStatement,
     env: Environment
-): RuntimeVal {
-    const startVal = evaluate(stmt.start, env);
-    const endVal = evaluate(stmt.end, env);
+): Promise<RuntimeVal> {
+    const startVal = await evaluate(stmt.start, env);
+    const endVal = await evaluate(stmt.end, env);
     
     if (startVal.type !== "number" || endVal.type !== "number") {
         throw new NovaTypeError("Repeat loop range must be numbers", getLocation(stmt));
@@ -473,8 +555,18 @@ function eval_for_statement(
     
     while (current <= end) {
         const iterationScope = new Environment(scope, "block");
-        for (const s of stmt.body) {
-            lastVal = evaluate(s, iterationScope);
+        try {
+            for (const s of stmt.body) {
+                lastVal = await evaluate(s, iterationScope);
+            }
+        } catch (e) {
+            if (e instanceof BreakException) break;
+            if (e instanceof ContinueException) {
+                current++;
+                scope.assignVar(stmt.counter, MK_NUMBER(current));
+                continue;
+            }
+            throw e;
         }
         current++;
         scope.assignVar(stmt.counter, MK_NUMBER(current));
@@ -483,7 +575,7 @@ function eval_for_statement(
     return lastVal;
 }
 
-function eval_module(modulePath: string, parentEnv: Environment): RuntimeVal {
+async function eval_module(modulePath: string, parentEnv: Environment): Promise<RuntimeVal> {
     const absolutePath = path.resolve(modulePath);
     if (moduleCache.has(absolutePath)) {
         return moduleCache.get(absolutePath)!;
@@ -497,11 +589,6 @@ function eval_module(modulePath: string, parentEnv: Environment): RuntimeVal {
     const parser = new Parser();
     const program = parser.produceAST(source, absolutePath);
     
-    // Create a new environment for the module
-    // It should have access to global built-ins but its own local scope
-    // We can simulate this by having its parent be the global environment
-    
-    // To find global env, we traverse up from parentEnv
     let globalEnv = parentEnv;
     while ((globalEnv as any).parent) {
         globalEnv = (globalEnv as any).parent;
@@ -512,7 +599,7 @@ function eval_module(modulePath: string, parentEnv: Environment): RuntimeVal {
     moduleEnv.declareVar("exports", exports, false);
     
     try {
-        evaluate(program, moduleEnv);
+        await evaluate(program, moduleEnv);
     } catch (e) {
         throw e;
     }
@@ -522,24 +609,109 @@ function eval_module(modulePath: string, parentEnv: Environment): RuntimeVal {
     return result;
 }
 
-function eval_import_statement(
+async function eval_switch_statement(
+    stmt: SwitchStatement,
+    env: Environment
+): Promise<RuntimeVal> {
+    const discriminant = await evaluate(stmt.discriminant, env);
+    const discValue = (discriminant as any).value;
+    
+    let matched = false;
+    let result: RuntimeVal = MK_NULL();
+    
+    for (const caseStmt of stmt.cases) {
+        const test = await evaluate(caseStmt.test, env);
+        if ((test as any).value === discValue) {
+            matched = true;
+            const scope = new Environment(env, "block");
+            try {
+                for (const s of caseStmt.consequent) {
+                    result = await evaluate(s, scope);
+                }
+            } catch (e) {
+                if (e instanceof BreakException) return MK_NULL();
+                throw e;
+            }
+            break;
+        }
+    }
+    
+    if (!matched && stmt.default) {
+        const scope = new Environment(env, "block");
+        try {
+            for (const s of stmt.default) {
+                result = await evaluate(s, scope);
+            }
+        } catch (e) {
+            if (e instanceof BreakException) return MK_NULL();
+            throw e;
+        }
+    }
+    
+    return result;
+}
+
+async function eval_try_catch_statement(
+    stmt: TryCatchStatement,
+    env: Environment
+): Promise<RuntimeVal> {
+    const scope = new Environment(env, "block");
+    let result: RuntimeVal = MK_NULL();
+    
+    try {
+        for (const s of stmt.body) {
+            result = await evaluate(s, scope);
+        }
+    } catch (e) {
+        if (e instanceof ReturnException || e instanceof BreakException || e instanceof ContinueException) {
+            throw e; // Control flow should bypass catch
+        }
+        
+        // Nova throws RuntimeVals. Wrapped JS errors might also occur.
+        const errorVal = (e instanceof Error) ? MK_STRING(e.message) : (e as RuntimeVal);
+        
+        if (stmt.catchBlock.length > 0) {
+            const catchScope = new Environment(env, "block");
+            if (stmt.catchParameter) {
+                catchScope.declareVar(stmt.catchParameter, errorVal, true);
+            }
+            for (const s of stmt.catchBlock) {
+                result = await evaluate(s, catchScope);
+            }
+        } else {
+            // Rethrow if no catch
+            throw e;
+        }
+    } finally {
+        if (stmt.finallyBlock) {
+            const finallyScope = new Environment(env, "block");
+            for (const s of stmt.finallyBlock) {
+                await evaluate(s, finallyScope);
+            }
+        }
+    }
+    
+    return result;
+}
+
+async function eval_import_statement(
     stmt: ImportStatement,
     env: Environment
-): RuntimeVal {
+): Promise<RuntimeVal> {
     try {
-        eval_module(stmt.moduleName, env);
+        await eval_module(stmt.moduleName, env);
         return MK_NULL();
     } catch (e: any) {
         throw new NovaImportError(e.message, getLocation(stmt));
     }
 }
 
-function eval_import_expr(
+async function eval_import_expr(
     expr: ImportExpr,
     env: Environment
-): RuntimeVal {
+): Promise<RuntimeVal> {
     try {
-        return eval_module(expr.moduleName, env);
+        return await eval_module(expr.moduleName, env);
     } catch (e: any) {
         throw new NovaImportError(e.message, getLocation(expr));
     }

@@ -1,13 +1,17 @@
-# NovaScript v5.5.0 Basics
+# NovaScript v5.5.5 Basics
 
 NovaScript is a dynamically-typed, interpreted language heavily inspired by JavaScript/TypeScript but built with a cleaner, minimalistic aesthetic.
 
-## Variables
-You can declare variables using `let` and `const`.
+## Variables & Scopes
+NovaScript supports multi-level scoping:
+- **Block Scope**: `let` and `const` are confined to the block `{}` they are defined in.
+- **Global Scope**: Use the `global` keyword for variables accessible everywhere.
+- **Function Scope**: Parameters and variables inside `fn` are private to that function.
+
 ```javascript
-let x = 10
-const y = 20
-x = x + y
+let x = 10         // Block/Local
+const y = 20       // Constant
+global name = "Nova" // Accessible everywhere
 ```
 
 ## Data Types
@@ -20,16 +24,21 @@ NovaScript supports standard literals:
 - **Objects**: `{ key: "value", age: 25 }`
 
 ## Operators
-- **Arithmetic**: `+`, `-`, `*`, `/`, `%`
-- **Comparison**: `==`, `!=`, `<`, `>`
-- **Logical**: `and`, `or`, `not`
-- **Hybrid English Aliases**: `is` (for `==`), `isnt` (for `!=`)
+NovaScript v5.5.5 features a complete set of operators:
+- **Arithmetic**: `+`, `-`, `*`, `/`, `%`, `**` (Power)
+- **Comparison**: `==` (`is`), `!=` (`isnt`), `<`, `>`, `<=`, `>=`
+- **Logical**: `&&` (`and`), `||` (`or`), `!` (`not`)
+- **Assignment**: `=`, `+=`, `-=`
+- **Bitwise**: `&`, `|`, `^`, `<<`, `>>`
 
 *Example:*
 ```javascript
 if (x is 10 and not false) {
     print("Match!")
 }
+let power = 2 ** 3 # 8
+let count = 0
+count += 5 # 5
 ```
 
 ## Control Flow
@@ -42,27 +51,48 @@ if (score > 90) {
 }
 ```
 
-### While Loop
+### Switch / Case
 ```javascript
-let i = 0
-while (i < 5) {
-    print(i)
-    i = i + 1
+switch status {
+    case "success" { print("Success!") }
+    case "error"   { print("Error!") }
+    default        { print("Unknown!") }
 }
 ```
 
-### For Loop (Range Based)
+### Loops (While, For, Break, Continue)
 ```javascript
+let i = 0
+while i < 5 {
+    if i == 2 { continue }
+    print(i)
+    i = i + 1
+}
+
 for count from 1 to 10 {
+    if count == 8 { break }
     print(count)
 }
 ```
 
-## Functions
-Define functions using the `fn` keyword.
+## Functions & Async
+Define functions using the `fn` keyword. Use `async`/`await` for non-blocking operations.
 ```javascript
-fn compute(a, b) {
-    return a * b + 10
+async fn fetchData() {
+    return "Data"
+}
+
+let data = await fetchData()
+```
+
+## Error Handling
+```javascript
+try {
+    throw "Fatal Error"
+} catch err {
+    print("Caught:", err)
+} finally {
+    print("Cleanup")
 }
 ```
 

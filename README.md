@@ -1,14 +1,16 @@
-# NovaScript (v5.5.0) - Production Grade!
+# NovaScript (v5.5.5) - Production Grade!
 
-NovaScript is an English-like programming language with a hybrid syntax that balances readability and performance. Now updated to v5.5.0, it is specifically designed to be highly logical, natively cross-platform, and perfectly suitable for production.
+NovaScript is an English-like programming language with a hybrid syntax that balances readability and performance. Now updated to v5.5.5, it is specifically designed to be highly logical, natively cross-platform, and perfectly suitable for production.
 
-## Core Features (v5.5.0)
+## Core Features (v5.5.5)
 
+- **Async/Await:** Powerful asynchronous programming model for non-blocking operations.
+- **Error Handling:** Robust `try`, `catch`, `finally`, and `throw` statements.
+- **Advanced Flow Control:** `switch`, `case`, `default`, `break`, and `continue`.
 - **Hybrid Syntax:** Uses `{}` for blocks, `()` for expressions and function calls.
 - **English Keywords:** `is` (==), `isnt` (!=), `and`, `or`, `not`, `let`, `fn`, `if`, `else`, `while`, `for`, `from`, `to`, `return`, `include`.
+- **Expanded Operators:** Arithmetical (`**`, `%`), Logical (`&&`, `||`, `!`), Bitwise (`&`, `|`, `^`, `<<`, `>>`), and Assignment (`+=`, `-=`).
 - **Massive Standard Library:** Built-in `Math`, `Sys`, `FS`, `HTTP`, `JSON`, `String`, `Array`, `Regex`, `Date`, `Base64`, and `Console`!
-- **Build Compilers:** Capable of highly complex parsing and file IO, proving its mettle by being able to lex itself!
-- **Server Framework:** Run native HTTP web servers directly inside Nova.
 - **Friendly Errors:** Clear error messages natively trace exact file names seamlessly across module trees.
 
 ## 📚 Documentation
@@ -43,13 +45,39 @@ if (age is 18) {
     print("Access denied.")
 }
 
+switch status {
+    case "success" { print("Done!") }
+    case "error"   { print("Failed!") }
+    default        { print("Pending...") }
+}
+
 while (count < 5) {
     print(count)
+    if (count == 2) { continue }
+    if (count == 4) { break }
     count = count + 1
 }
 
-for (i from 1 to 10) {
+for i from 1 to 10 {
     print(i)
+}
+```
+
+### Async & Error Handling
+```novascript
+async fn fetchData() {
+    print("Fetching...")
+    return "Data"
+}
+
+try {
+    let result = await fetchData()
+    print("Result:", result)
+    throw "Oops!"
+} catch err {
+    print("Caught:", err)
+} finally {
+    print("Finished.")
 }
 ```
 

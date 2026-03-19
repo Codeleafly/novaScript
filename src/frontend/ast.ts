@@ -9,13 +9,20 @@ export type NodeType =
   | "IfStatement"
   | "WhileStatement"
   | "ForStatement"
+  | "SwitchStatement"
+  | "CaseStatement"
+  | "TryCatchStatement"
   | "ReturnStatement"
+  | "ThrowStatement"
+  | "BreakStatement"
+  | "ContinueStatement"
   | "ImportStatement"
   | "ImportExpr"
   | "AssignmentExpr"
   | "BinaryExpr"
   | "CallExpr"
   | "MemberExpr"
+  | "AwaitExpr"
   | "Identifier"
   | "NumericLiteral"
   | "StringLiteral"
@@ -54,6 +61,7 @@ export interface FunctionDeclaration extends Statement {
   name: string;
   parameters: string[];
   body: Statement[];
+  async: boolean;
 }
 
 export interface IfStatement extends Statement {
@@ -77,9 +85,43 @@ export interface ForStatement extends Statement {
     body: Statement[];
 }
 
+export interface SwitchStatement extends Statement {
+    kind: "SwitchStatement";
+    discriminant: Expression;
+    cases: CaseStatement[];
+    default?: Statement[];
+}
+
+export interface CaseStatement extends Statement {
+    kind: "CaseStatement";
+    test: Expression;
+    consequent: Statement[];
+}
+
+export interface TryCatchStatement extends Statement {
+    kind: "TryCatchStatement";
+    body: Statement[];
+    catchParameter?: string;
+    catchBlock: Statement[];
+    finallyBlock?: Statement[];
+}
+
 export interface ReturnStatement extends Statement {
   kind: "ReturnStatement";
   value?: Expression;
+}
+
+export interface ThrowStatement extends Statement {
+    kind: "ThrowStatement";
+    argument: Expression;
+}
+
+export interface BreakStatement extends Statement {
+    kind: "BreakStatement";
+}
+
+export interface ContinueStatement extends Statement {
+    kind: "ContinueStatement";
 }
 
 export interface ImportStatement extends Statement {
@@ -118,6 +160,11 @@ export interface MemberExpr extends Expression {
   object: Expression;
   property: Expression; // Identifier or String
   computed: boolean; // if true, object[property]. if false, object.property
+}
+
+export interface AwaitExpr extends Expression {
+    kind: "AwaitExpr";
+    argument: Expression;
 }
 
 export interface Identifier extends Expression {

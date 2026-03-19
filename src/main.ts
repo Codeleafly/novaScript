@@ -18,7 +18,7 @@ import { createHTTPModule } from "./runtime/native/http_module";
 import { createSysModule } from "./runtime/native/sys_module";
 
 const prompt = promptSync({ sigint: true });
-const VERSION = "v5.5.0-dev";
+const VERSION = "v5.5.5";
 
 function stringify(val: RuntimeVal): string {
     switch (val.type) {
@@ -26,6 +26,7 @@ function stringify(val: RuntimeVal): string {
         case "number": return chalk.yellow((val as any).value.toString());
         case "boolean": return chalk.cyan((val as any).value.toString());
         case "null": return chalk.gray("null");
+        case "promise": return chalk.blue("[Promise]");
         case "array": 
             return chalk.white("[") + (val as any).elements.map((e: any) => stringify(e)).join(chalk.white(", ")) + chalk.white("]");
         case "object": 
@@ -45,6 +46,7 @@ function plainStringify(val: RuntimeVal): string {
         case "number": return (val as any).value.toString();
         case "boolean": return (val as any).value.toString();
         case "null": return "null";
+        case "promise": return "[Promise]";
         case "array": 
             return "[" + (val as any).elements.map((e: any) => plainStringify(e)).join(", ") + "]";
         case "object": 
@@ -352,7 +354,12 @@ function reportError(err: any) {
 
 // ─── Syntax Highlight for REPL Input Display ───────────────────────────────
 function highlightSyntax(code: string): string {
-    const keywords = ["let", "const", "global", "fn", "if", "else", "while", "for", "from", "to", "return", "include", "and", "or", "not", "is", "isnt", "true", "false", "null", "print"];
+    const keywords = [
+        "let", "const", "global", "fn", "if", "else", "while", "for", "from", "to", 
+        "return", "include", "and", "or", "not", "is", "isnt", "true", "false", "null", 
+        "print", "async", "await", "try", "catch", "finally", "throw", "switch", 
+        "case", "default", "break", "continue"
+    ];
     let result = code;
 
     // Keywords
@@ -429,20 +436,21 @@ function printCliHelp() {
 }
 
 // ─── Run File ───────────────────────────────────────────────────────────────
-function run(filename: string) {
+async function run(filename: string) {
     const parser = new Parser();
     const env = setupEnv();
 
-    if (!fs.existsSync(filename)) {
+    const absolutePath = path.resolve(filename);
+    if (!fs.existsSync(absolutePath)) {
         console.log(chalk.red.bold(`\nError: File not found: ${filename}`));
         process.exit(1);
         return;
     }
 
-    const input = fs.readFileSync(filename, "utf-8");
+    const input = fs.readFileSync(absolutePath, "utf-8");
     try {
-        const program = parser.produceAST(input, filename);
-        evaluate(program, env);
+        const program = parser.produceAST(input, absolutePath);
+        await evaluate(program, env);
     } catch (e) {
         reportError(e);
         process.exit(1);
@@ -455,13 +463,13 @@ function repl() {
     let env = setupEnv();
 
     // Banner
-    const v = chalk.hex("#C084FC").bold(VERSION);
-    const sep = chalk.hex("#4C1D95")("━".repeat(48));
+    const v = chalk.hex("#D8B4FE").bold(VERSION);
+    const sep = chalk.hex("#6D28D9")("━".repeat(48));
     console.log("");
     console.log("  " + sep);
-    console.log("  " + chalk.hex("#7C3AED")("◆") + "  " + chalk.hex("#C084FC").bold("Nova") + chalk.white.bold("Script") + "  " + chalk.hex("#9D5CF6")("◆") + "  " + chalk.hex("#6D28D9")("Production REPL") + "  " + chalk.hex("#7C3AED")("◆") + "  " + v);
+    console.log("  " + chalk.hex("#A78BFA")("✧") + "  " + chalk.hex("#C084FC").bold("Nova") + chalk.white.bold("Script") + "  " + chalk.hex("#A78BFA")("✧") + "  " + chalk.hex("#DDD6FE")("Evolutionary REPL") + "  " + chalk.hex("#A78BFA")("✧") + "  " + v);
     console.log("  " + sep);
-    console.log("  " + chalk.hex("#7C3AED")("▸") + " " + chalk.gray(".help") + chalk.hex("#4C1D95")("  •  ") + chalk.gray(".editor") + chalk.hex("#4C1D95")("  •  ") + chalk.gray(".reset") + chalk.hex("#4C1D95")("  •  ") + chalk.gray(".clear") + chalk.hex("#4C1D95")("  •  ") + chalk.gray(".exit"));
+    console.log("  " + chalk.hex("#9D5CF6")("▸") + " " + chalk.gray(".help") + chalk.hex("#7C3AED")("  •  ") + chalk.gray(".editor") + chalk.hex("#7C3AED")("  •  ") + chalk.gray(".reset") + chalk.hex("#7C3AED")("  •  ") + chalk.gray(".clear") + chalk.hex("#7C3AED")("  •  ") + chalk.gray(".exit"));
     console.log("");
 
     const rl = readline.createInterface({
@@ -481,7 +489,7 @@ function repl() {
 
     rl.prompt();
 
-    rl.on("line", (inputLine) => {
+    rl.on("line", async (inputLine) => {
         const trimmed = inputLine.trim();
 
         // ─ Editor Mode ────────────────────────────────────────────────────
@@ -494,7 +502,7 @@ function repl() {
                 if (code) {
                     try {
                         const program = parser.produceAST(code, "repl");
-                        const result = evaluate(program, env);
+                        const result = await evaluate(program, env);
                         if (result.type !== "null") console.log(stringify(result));
                     } catch (e) {
                         reportError(e);
@@ -528,7 +536,7 @@ function repl() {
                 multiLineBuffer = "";
                 try {
                     const program = parser.produceAST(code, "repl");
-                    const result = evaluate(program, env);
+                    const result = await evaluate(program, env);
                     if (result.type !== "null") console.log(stringify(result));
                 } catch (e) {
                     reportError(e);
@@ -589,7 +597,7 @@ function repl() {
         // ─ Normal evaluate ─────────────────────────────────────────────────
         try {
             const program = parser.produceAST(trimmed, "repl");
-            const result = evaluate(program, env);
+            const result = await evaluate(program, env);
             if (result.type !== "null") {
                 console.log("  " + chalk.gray("⟵ ") + stringify(result));
             }
@@ -636,13 +644,19 @@ if (cliArgs.length === 0) {
                 console.log(chalk.red.bold("\n  Error: No file specified. Usage: nova run <file.nv>\n"));
                 process.exit(1);
             }
-            run(cliArgs[1]);
+            run(cliArgs[1]).catch(e => {
+                reportError(e);
+                process.exit(1);
+            });
             break;
 
         default:
             // Assume it's a filename (backward compatible)
-            if (cmd.endsWith(".nv") || cmd.endsWith(".nova") || fs.existsSync(cmd)) {
-                run(cmd);
+            if (cmd.endsWith(".nv") || cmd.endsWith(".nova") || cmd.endsWith(".ns") || fs.existsSync(cmd)) {
+                run(cmd).catch(e => {
+                    reportError(e);
+                    process.exit(1);
+                });
             } else {
                 console.log(chalk.red.bold(`\n  Unknown command: ${cmd}`));
                 console.log(chalk.gray("  Run 'nova help' for usage.\n"));

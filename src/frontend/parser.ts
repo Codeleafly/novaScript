@@ -6,7 +6,8 @@ import {
     VarDeclaration, AssignmentExpr, CallExpr, FunctionDeclaration, IfStatement, 
     WhileStatement, MemberExpr, ObjectLiteral, Property, StringLiteral, 
     ReturnStatement, ArrayLiteral, ForStatement, ImportStatement, ImportExpr, NodeType,
-    GlobalDeclaration
+    GlobalDeclaration, SwitchStatement, CaseStatement, TryCatchStatement, ThrowStatement,
+    BreakStatement, ContinueStatement, AwaitExpr
 } from "./ast";
 import { tokenize, Token, TokenType } from "./lexer";
 import { NovaSyntaxError, ErrorLocation } from "../runtime/errors";
@@ -87,6 +88,7 @@ export default class Parser {
         return this.parse_var_declaration();
       case TokenType.Global:
         return this.parse_global_declaration();
+      case TokenType.Async:
       case TokenType.Fn:
         return this.parse_function_declaration();
       case TokenType.If:
@@ -95,8 +97,18 @@ export default class Parser {
         return this.parse_while_statement();
       case TokenType.For:
         return this.parse_for_statement();
+      case TokenType.Switch:
+        return this.parse_switch_statement();
+      case TokenType.Try:
+        return this.parse_try_catch_statement();
       case TokenType.Return:
         return this.parse_return_statement();
+      case TokenType.Throw:
+        return this.parse_throw_statement();
+      case TokenType.Break:
+        return this.parse_break_statement();
+      case TokenType.Continue:
+        return this.parse_continue_statement();
       case TokenType.OpenBrace:
           return this.parse_block();
       default:
@@ -148,9 +160,10 @@ export default class Parser {
 
   private parse_if_statement(): Statement {
       const ifToken = this.eat();
-      this.expect(TokenType.OpenParen, "Expected ( after if");
+      const hasParen = this.at().type === TokenType.OpenParen;
+      if (hasParen) this.eat();
       const condition = this.parse_expression();
-      this.expect(TokenType.CloseParen, "Expected ) after condition");
+      if (hasParen) this.expect(TokenType.CloseParen, "Expected ) after condition");
       const thenNode = this.parse_statement();
       const thenBranch = thenNode.kind === "Program" ? (thenNode as any).body : [thenNode];
       let elseBranch: Statement[] | undefined = undefined;
@@ -163,7 +176,12 @@ export default class Parser {
   }
 
   private parse_function_declaration(): Statement {
-      const fnToken = this.eat();
+      let isAsync = false;
+      if (this.at().type === TokenType.Async) {
+          this.eat();
+          isAsync = true;
+      }
+      const fnToken = this.expect(TokenType.Fn, "Expected 'fn' keyword after 'async' (or alone)");
       const name = this.expect(TokenType.Identifier, "Expected function name").value;
       this.expect(TokenType.OpenParen, "Expected ( after function name");
       const args: string[] = [];
@@ -174,7 +192,96 @@ export default class Parser {
       this.expect(TokenType.CloseParen, "Expected ) after function parameters");
       const bodyNode = this.parse_statement();
       const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
-      return { kind: "FunctionDeclaration", name, parameters: args, body, line: fnToken.line, column: fnToken.column } as FunctionDeclaration;
+      return { kind: "FunctionDeclaration", name, parameters: args, body, async: isAsync, line: fnToken.line, column: fnToken.column } as FunctionDeclaration;
+  }
+
+  private parse_switch_statement(): Statement {
+      const switchToken = this.eat();
+      const hasParen = this.at().type === TokenType.OpenParen;
+      if (hasParen) this.eat();
+      const discriminant = this.parse_expression();
+      if (hasParen) this.expect(TokenType.CloseParen, "Expected ) after switch expression");
+      
+      this.expect(TokenType.OpenBrace, "Expected { to start switch block");
+      const cases: CaseStatement[] = [];
+      let defaultBlock: Statement[] | undefined = undefined;
+
+      while (this.not_eof() && this.at().type !== TokenType.CloseBrace) {
+          if (this.at().type === TokenType.Case) {
+              const caseToken = this.eat();
+              const test = this.parse_expression();
+              this.expect(TokenType.OpenBrace, "Expected { after case value");
+              const consequent: Statement[] = [];
+              while (this.at().type !== TokenType.CloseBrace && this.not_eof()) {
+                  consequent.push(this.parse_statement());
+              }
+              this.expect(TokenType.CloseBrace, "Expected } to end case block");
+              cases.push({ kind: "CaseStatement", test, consequent, line: caseToken.line, column: caseToken.column });
+          } else if (this.at().type === TokenType.Default) {
+              this.eat();
+              this.expect(TokenType.OpenBrace, "Expected { after default keyword");
+              defaultBlock = [];
+              while (this.at().type !== TokenType.CloseBrace && this.not_eof()) {
+                  defaultBlock.push(this.parse_statement());
+              }
+              this.expect(TokenType.CloseBrace, "Expected } to end default block");
+          } else {
+              throw new NovaSyntaxError(`Unexpected token in switch: ${this.at().value}`, this.getLocation(this.at()));
+          }
+      }
+      this.expect(TokenType.CloseBrace, "Expected } to end switch block");
+      return { kind: "SwitchStatement", discriminant, cases, default: defaultBlock, line: switchToken.line, column: switchToken.column } as SwitchStatement;
+  }
+
+  private parse_try_catch_statement(): Statement {
+      const tryToken = this.eat();
+      const bodyNode = this.parse_block();
+      const body = (bodyNode as any).body;
+      
+      let catchParameter: string | undefined = undefined;
+      let catchBlock: Statement[] = [];
+      let finallyBlock: Statement[] | undefined = undefined;
+
+      if (this.at().type === TokenType.Catch) {
+          this.eat();
+          if (this.at().type === TokenType.OpenParen) {
+              this.eat();
+              catchParameter = this.expect(TokenType.Identifier, "Expected identifier for catch parameter").value;
+              this.expect(TokenType.CloseParen, "Expected ) after catch parameter");
+          } else if (this.at().type === TokenType.Identifier) {
+              catchParameter = this.eat().value;
+          }
+          const catchNode = this.parse_block();
+          catchBlock = (catchNode as any).body;
+      }
+
+      if (this.at().type === TokenType.Finally) {
+          this.eat();
+          const finallyNode = this.parse_block();
+          finallyBlock = (finallyNode as any).body;
+      }
+
+      if (catchBlock.length === 0 && !finallyBlock) {
+          throw new NovaSyntaxError("Try statement must have a catch or finally block", this.getLocation(tryToken));
+      }
+
+      return { kind: "TryCatchStatement", body, catchParameter, catchBlock, finallyBlock, line: tryToken.line, column: tryToken.column } as TryCatchStatement;
+  }
+
+  private parse_throw_statement(): Statement {
+      const throwToken = this.eat();
+      const argument = this.parse_expression();
+      return { kind: "ThrowStatement", argument, line: throwToken.line, column: throwToken.column } as ThrowStatement;
+  }
+
+  private parse_break_statement(): Statement {
+      const breakToken = this.eat();
+      return { kind: "BreakStatement", line: breakToken.line, column: breakToken.column } as BreakStatement;
+  }
+
+  private parse_continue_statement(): Statement {
+      const continueToken = this.eat();
+      return { kind: "ContinueStatement", line: continueToken.line, column: continueToken.column } as ContinueStatement;
   }
 
   private parse_global_declaration(): Statement {
@@ -208,9 +315,17 @@ export default class Parser {
 
   private parse_assignment_expr(): Expression {
     const left = this.parse_object_expr();
-    if (this.at().type === TokenType.Assign) {
-      this.eat();
+    if (this.at().type === TokenType.Assign || this.at().type === TokenType.PlusEquals || this.at().type === TokenType.MinusEquals) {
+      const opToken = this.eat();
       const value = this.parse_assignment_expr();
+      
+      if (opToken.type === TokenType.PlusEquals || opToken.type === TokenType.MinusEquals) {
+          // Desugar += and -= to BinaryExpr
+          const op = opToken.type === TokenType.PlusEquals ? "+" : "-";
+          const binary: BinaryExpr = { kind: "BinaryExpr", left, right: value, operator: op, line: opToken.line, column: opToken.column };
+          return { kind: "AssignmentExpr", assignee: left, value: binary, line: left.line, column: left.column } as AssignmentExpr;
+      }
+      
       return { kind: "AssignmentExpr", assignee: left, value, line: left.line, column: left.column } as AssignmentExpr;
     }
     return left;
@@ -239,20 +354,50 @@ export default class Parser {
 
   private parse_logical_or_expr(): Expression {
       let left = this.parse_logical_and_expr();
-      while(this.at().type === TokenType.Or) {
+      while(this.at().type === TokenType.Or || this.at().type === TokenType.OrLogic) {
           const opToken = this.eat();
           const right = this.parse_logical_and_expr();
-          left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
+          left = { kind: "BinaryExpr", left, right, operator: opToken.value || "||", line: opToken.line, column: opToken.column } as BinaryExpr;
       }
       return left;
   }
 
   private parse_logical_and_expr(): Expression {
+      let left = this.parse_bitwise_or_expr();
+      while(this.at().type === TokenType.And || this.at().type === TokenType.AndLogic) {
+          const opToken = this.eat();
+          const right = this.parse_bitwise_or_expr();
+          left = { kind: "BinaryExpr", left, right, operator: opToken.value || "&&", line: opToken.line, column: opToken.column } as BinaryExpr;
+      }
+      return left;
+  }
+
+  private parse_bitwise_or_expr(): Expression {
+      let left = this.parse_bitwise_xor_expr();
+      while (this.at().type === TokenType.Pipe) {
+          const opToken = this.eat();
+          const right = this.parse_bitwise_xor_expr();
+          left = { kind: "BinaryExpr", left, right, operator: "|", line: opToken.line, column: opToken.column } as BinaryExpr;
+      }
+      return left;
+  }
+
+  private parse_bitwise_xor_expr(): Expression {
+      let left = this.parse_bitwise_and_expr();
+      while (this.at().type === TokenType.Caret) {
+          const opToken = this.eat();
+          const right = this.parse_bitwise_and_expr();
+          left = { kind: "BinaryExpr", left, right, operator: "^", line: opToken.line, column: opToken.column } as BinaryExpr;
+      }
+      return left;
+  }
+
+  private parse_bitwise_and_expr(): Expression {
       let left = this.parse_equality_expr();
-      while(this.at().type === TokenType.And) {
+      while (this.at().type === TokenType.Ampersand) {
           const opToken = this.eat();
           const right = this.parse_equality_expr();
-          left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
+          left = { kind: "BinaryExpr", left, right, operator: "&", line: opToken.line, column: opToken.column } as BinaryExpr;
       }
       return left;
   }
@@ -268,8 +413,18 @@ export default class Parser {
   }
 
   private parse_relational_expr(): Expression {
+      let left = this.parse_shift_expr();
+      while(this.at().type === TokenType.LessThan || this.at().type === TokenType.GreaterThan || this.at().type === TokenType.LessEquals || this.at().type === TokenType.GreaterEquals) {
+          const opToken = this.eat();
+          const right = this.parse_shift_expr();
+          left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
+      }
+      return left;
+  }
+
+  private parse_shift_expr(): Expression {
       let left = this.parse_additive_expr();
-      while(this.at().type === TokenType.LessThan || this.at().type === TokenType.GreaterThan) {
+      while (this.at().type === TokenType.ShiftLeft || this.at().type === TokenType.ShiftRight) {
           const opToken = this.eat();
           const right = this.parse_additive_expr();
           left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
@@ -288,21 +443,38 @@ export default class Parser {
   }
 
   private parse_multiplicative_expr(): Expression {
-    let left = this.parse_unary_expr();
+    let left = this.parse_power_expr();
     while (this.at().type === TokenType.Times || this.at().type === TokenType.Slash || this.at().type === TokenType.Percent) {
       const opToken = this.eat();
-      const right = this.parse_unary_expr();
+      const right = this.parse_power_expr();
       left = { kind: "BinaryExpr", left, right, operator: opToken.value, line: opToken.line, column: opToken.column } as BinaryExpr;
     }
     return left;
   }
 
+  private parse_power_expr(): Expression {
+      let left = this.parse_unary_expr();
+      while (this.at().type === TokenType.Power) {
+          const opToken = this.eat();
+          const right = this.parse_power_expr(); // Right-associative or just recursive
+          left = { kind: "BinaryExpr", left, right, operator: "**", line: opToken.line, column: opToken.column } as BinaryExpr;
+      }
+      return left;
+  }
+
   private parse_unary_expr(): Expression {
-      if (this.at().type === TokenType.Minus || this.at().type === TokenType.Not) {
+      if (this.at().type === TokenType.Minus || this.at().type === TokenType.Not || this.at().type === TokenType.NotLogic) {
           const opToken = this.eat();
           const arg = this.parse_unary_expr();
-          return { kind: "BinaryExpr", left: arg, right: { kind: "NumericLiteral", value: 0 } as any, operator: "unary_" + opToken.value, line: opToken.line, column: opToken.column } as any;
+          return { kind: "BinaryExpr", left: arg, right: { kind: "NumericLiteral", value: 0 } as any, operator: "unary_" + (opToken.value || "not"), line: opToken.line, column: opToken.column } as any;
       }
+      
+      if (this.at().type === TokenType.Await) {
+          const awaitToken = this.eat();
+          const arg = this.parse_unary_expr();
+          return { kind: "AwaitExpr", argument: arg, line: awaitToken.line, column: awaitToken.column } as AwaitExpr;
+      }
+      
       return this.parse_call_member_expr();
   }
 
@@ -395,6 +567,7 @@ export default class Parser {
   private is_start_of_expression(type: TokenType): boolean {
       return type === TokenType.Identifier || type === TokenType.Number || type === TokenType.String || 
              type === TokenType.OpenParen || type === TokenType.OpenBrace || type === TokenType.OpenBracket || 
-             type === TokenType.Minus || type === TokenType.Not || type === TokenType.Include;
+             type === TokenType.Minus || type === TokenType.Not || type === TokenType.NotLogic || 
+             type === TokenType.Include || type === TokenType.Await;
   }
 }

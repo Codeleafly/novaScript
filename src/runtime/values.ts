@@ -4,10 +4,15 @@
 import { Statement } from "../frontend/ast";
 import Environment from "./environment";
 
-export type ValueType = "null" | "number" | "boolean" | "object" | "native-fn" | "function" | "string" | "array";
+export type ValueType = "null" | "number" | "boolean" | "object" | "native-fn" | "function" | "string" | "array" | "promise";
 
 export interface RuntimeVal {
   type: ValueType;
+}
+
+export interface PromiseVal extends RuntimeVal {
+    type: "promise";
+    promise: Promise<RuntimeVal>;
 }
 
 export interface NullVal extends RuntimeVal {
@@ -53,6 +58,11 @@ export interface FunctionVal extends RuntimeVal {
     parameters: string[];
     declarationEnv: Environment;
     body: Statement[];
+    async: boolean;
+}
+
+export function MK_PROMISE(p: Promise<RuntimeVal>): PromiseVal {
+    return { type: "promise", promise: p };
 }
 
 export function MK_NUMBER(n: number = 0): NumberVal {

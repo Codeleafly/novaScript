@@ -1,0 +1,65 @@
+# NovaScript v5.5.5 Feature Verification
+
+print("--- Testing Operators ---")
+let a = 2
+let b = 3
+print("2 ** 3 =", a ** b)
+print("true && false =", true && false)
+print("true || false =", true || false)
+print("!true =", !true)
+print("5 & 3 =", 5 & 3)
+print("5 | 3 =", 5 | 3)
+
+print("\n--- Testing Shorthand Assignment ---")
+let x = 10
+x += 5
+print("10 += 5 ->", x)
+x -= 3
+print("15 -= 3 ->", x)
+
+print("\n--- Testing Switch/Case ---")
+let status = "success"
+switch status {
+    case "error" {
+        print("Status is error")
+    }
+    case "success" {
+        print("Status is success!")
+    }
+    default {
+        print("Unknown status")
+    }
+}
+
+print("\n--- Testing Try/Catch/Finally ---")
+try {
+    print("In try block")
+    throw "Something went wrong"
+    print("This should not be printed")
+} catch err {
+    print("Caught error:", err)
+} finally {
+    print("Finally block executed")
+}
+
+print("\n--- Testing Async/Await ---")
+async fn fetchData() {
+    print("  Fetching data...")
+    return "Data received"
+}
+
+async fn main() {
+    print("Start main")
+    let result = await fetchData()
+    print("Result:", result)
+    print("End main")
+}
+
+main()
+
+print("\n--- Testing Loop Control (Break/Continue) ---")
+for i from 1 to 5 {
+    if i == 2 { continue }
+    if i == 4 { break }
+    print("Loop i =", i)
+}
