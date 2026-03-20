@@ -1,7 +1,11 @@
 
 // src/runtime/interpreter.ts
 
-import { NumberVal, RuntimeVal, MK_NULL, MK_NUMBER, MK_BOOL, StringVal, MK_STRING, ObjectVal, FunctionVal, NativeFnVal, ArrayVal, MK_ARRAY, BooleanVal, NullVal, MK_OBJECT, PromiseVal, MK_PROMISE } from "./values";
+import { 
+    RuntimeVal, NumberVal, StringVal, MK_NUMBER, MK_NULL, MK_OBJECT, MK_STRING, MK_BOOL, 
+    MK_NATIVE_FN, MK_ARRAY, jsToRuntimeVal, FunctionVal, ObjectVal, ArrayVal, 
+    NativeFnVal, BooleanVal, NullVal, MK_PROMISE, PromiseVal
+} from "./values";
 import { 
     BinaryExpr, Identifier, NodeType, NumericLiteral, Program, Statement, 
     VarDeclaration, AssignmentExpr, ObjectLiteral, CallExpr, FunctionDeclaration, 
@@ -18,6 +22,7 @@ import {
     NovaTypeError, NovaReferenceError, NovaRuntimeError, NovaZeroDivisionError, 
     NovaImportError, ErrorLocation 
 } from "./errors";
+import { LibraryManager } from "./library_manager";
 
 // Module cache to avoid re-evaluating the same module multiple times
 const moduleCache = new Map<string, RuntimeVal>();
@@ -324,14 +329,21 @@ async function eval_member_expr(
         throw new NovaTypeError(`String does not have property ${property}`, getLocation(expr));
     }
     
-    if (object.type !== "object") {
+    if (object.type !== "object" && object.type !== "native-fn") {
         throw new NovaTypeError("Cannot access property of non-object. Found: " + object.type, getLocation(expr));
     }
     
     const key = numericIndex >= 0 ? String(numericIndex) : property;
-    const val = (object as ObjectVal).properties.get(key);
+    let val = (object as any).properties.get(key);
+    
     if (val === undefined) {
-        return MK_NULL();
+        // Lazy resolution fallback for native bridging (e.g., Proxies like chalk)
+        if (object.underlyingValue && object.underlyingValue[key] !== undefined) {
+            val = jsToRuntimeVal(object.underlyingValue[key]);
+            (object as any).properties.set(key, val); // Cache it
+        } else {
+            return MK_NULL();
+        }
     }
     return val;
 }
@@ -577,16 +589,52 @@ async function eval_for_statement(
 
 async function eval_module(modulePath: string, parentEnv: Environment, callerFile?: string): Promise<RuntimeVal> {
     let absolutePath: string;
+    let isNative = false;
     
-    // Resolve relative path based on caller file if provided
-    if (callerFile && callerFile !== "repl" && !path.isAbsolute(modulePath)) {
-        absolutePath = path.resolve(path.dirname(callerFile), modulePath);
+    // 1. Resolve Global/Multi-source imports (v6.0.0)
+    if (modulePath.includes(":")) {
+        const resolved = await LibraryManager.resolve(modulePath);
+        absolutePath = resolved.path;
+        isNative = resolved.isNative;
     } else {
-        absolutePath = path.resolve(modulePath);
+        // Resolve relative path based on caller file if provided
+        if (callerFile && callerFile !== "repl" && !path.isAbsolute(modulePath)) {
+            absolutePath = path.resolve(path.dirname(callerFile), modulePath);
+        } else {
+            absolutePath = path.resolve(modulePath);
+        }
     }
 
     if (moduleCache.has(absolutePath)) {
         return moduleCache.get(absolutePath)!;
+    }
+
+    const ext = path.extname(absolutePath);
+    const isJS = ext === ".js" || ext === ".mjs" || ext === ".cjs" || isNative;
+
+    // 2. Handle Native Node.js/NPM Modules (ESM + CJS support)
+    if (isJS) {
+        try {
+            let nativeModule;
+            try {
+                // Try CommonJS first
+                nativeModule = require(absolutePath);
+            } catch (e: any) {
+                // If it's an ESM package or core node: module that needs import()
+                if (e.code === 'ERR_REQUIRE_ESM' || absolutePath.startsWith('node:') || ext === ".mjs") {
+                    const esm = await import(absolutePath);
+                    // ESM imports return a default if it's the only export, or a namespace
+                    nativeModule = esm.default || esm;
+                } else {
+                    throw e;
+                }
+            }
+            const result = jsToRuntimeVal(nativeModule);
+            moduleCache.set(absolutePath, result);
+            return result;
+        } catch (e: any) {
+            throw new Error(`Failed to load native module ${modulePath}: ${e.message}`);
+        }
     }
 
     if (!fs.existsSync(absolutePath)) {

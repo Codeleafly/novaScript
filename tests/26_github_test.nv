@@ -1,0 +1,7 @@
+print("--- GitHub Import Verification ---")
+# Testing a real file from this repository via jsDelivr
+# Using 'main' as version and full path to the file
+let remote_code = include("github:Codeleafly/novaScript@main/examples/v555_features.ns")
+
+print("✔ Remote GitHub code included successfully!")
+print("--- Verification Complete ---")

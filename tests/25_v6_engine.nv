@@ -1,0 +1,20 @@
+# tests/25_v6_engine.nv
+print("--- NovaScript v6.0.0: Global Import Engine Verification ---")
+
+# 1. Core Node Module Support
+print("Testing node:os core module...")
+let os = include("node:os")
+print("Platform: " + os.platform())
+print("Architecture: " + os.arch())
+print("✔ Core Node module support working.")
+
+# 2. NPM Package Support (Decentralized Global Cache)
+print("\nTesting npm:chalk package (will auto-cache in ~/.nova_libs)...")
+let chalk = include("npm:chalk")
+
+# Chalk exports methods that return strings
+let message = chalk.green("Success: NovaScript v6.0.0 Global Imports are ALIVE!")
+print(message)
+print("✔ NPM package support with native bridging working.")
+
+print("\n--- Verification Complete: Zero Configuration, Infinite Connectivity reached! ---")

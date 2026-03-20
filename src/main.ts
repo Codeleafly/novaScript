@@ -3,7 +3,7 @@
 import Parser from "./frontend/parser";
 import { evaluate } from "./runtime/interpreter";
 import { createGlobalEnv } from "./runtime/environment";
-import { MK_NATIVE_FN, MK_NULL, MK_NUMBER, MK_STRING, MK_BOOL, MK_OBJECT, MK_ARRAY, RuntimeVal, StringVal } from "./runtime/values";
+import { MK_NATIVE_FN, MK_NULL, MK_NUMBER, MK_STRING, MK_BOOL, MK_OBJECT, MK_ARRAY, RuntimeVal, StringVal, jsToRuntimeVal } from "./runtime/values";
 import { NovaError, ErrorLocation, ErrorType } from "./runtime/errors";
 import * as readline from "readline";
 import * as fs from "fs";
@@ -18,7 +18,7 @@ import { createHTTPModule } from "./runtime/native/http_module";
 import { createSysModule } from "./runtime/native/sys_module";
 
 const prompt = promptSync({ sigint: true });
-const VERSION = "v5.5.5";
+const VERSION = "v6.0.0";
 
 function stringify(val: RuntimeVal): string {
     switch (val.type) {
@@ -63,22 +63,17 @@ function plainStringify(val: RuntimeVal): string {
     }
 }
 
-function jsToRuntimeVal(jsObj: any): RuntimeVal {
-    if (jsObj === null) return MK_NULL();
-    if (typeof jsObj === "number") return MK_NUMBER(jsObj);
-    if (typeof jsObj === "string") return MK_STRING(jsObj);
-    if (typeof jsObj === "boolean") return MK_BOOL(jsObj);
-    if (Array.isArray(jsObj)) {
-        return MK_ARRAY(jsObj.map(item => jsToRuntimeVal(item)));
+
+/**
+ * Global Dependency pre-fetcher (pre-requisite for v6.0.0)
+ */
+async function getDependency(source: string) {
+    try {
+        const LibraryManager = (await import("./runtime/library_manager")).LibraryManager;
+        await LibraryManager.resolve(source);
+    } catch (e: any) {
+        throw e;
     }
-    if (typeof jsObj === "object") {
-        const props = new Map<string, RuntimeVal>();
-        for (const [key, value] of Object.entries(jsObj)) {
-            props.set(key, jsToRuntimeVal(value));
-        }
-        return MK_OBJECT(props);
-    }
-    return MK_NULL();
 }
 
 function setupEnv() {
@@ -416,11 +411,13 @@ function printReplHelp() {
 // ─── CLI Help ──────────────────────────────────────────────────────────────
 function printCliHelp() {
     console.log("");
-    console.log(chalk.cyan.bold("  NovaScript CLI " + VERSION));
+    console.log(chalk.cyan.bold(`  NovaScript CLI ${VERSION} (v0.1.0)`));
     console.log(chalk.gray("  ─────────────────────────────────────────────────────────────────────"));
     console.log(`  ${chalk.yellow("nova")}                      ${chalk.white("Start the interactive REPL")}`);
     console.log(`  ${chalk.yellow("nova run")} ${chalk.green("<file.nv>")}       ${chalk.white("Run a NovaScript file")}`);
     console.log(`  ${chalk.yellow("nova <file.nv>")}            ${chalk.white("Run a NovaScript file (shorthand)")}`);
+    console.log(`  ${chalk.yellow("nova get")} ${chalk.green("<source>")}        ${chalk.white("Pre-fetch a global dependency (npm:, github:, https:)")}`);
+    console.log(`  ${chalk.yellow("nova clean")}                ${chalk.white("Clear the global library cache (~/.nova_libs)")}`);
     console.log(`  ${chalk.yellow("nova version")}              ${chalk.white("Print the current version")}`);
     console.log(`  ${chalk.yellow("nova help")}                 ${chalk.white("Show this help message")}`);
     console.log(`  ${chalk.yellow("nova repl")}                 ${chalk.white("Start the interactive REPL explicitly")}`);
@@ -647,6 +644,26 @@ if (cliArgs.length === 0) {
             run(cliArgs[1]).catch(e => {
                 reportError(e);
                 process.exit(1);
+            });
+            break;
+
+        case "get":
+            if (!cliArgs[1]) {
+                console.log(chalk.red.bold("\n  Error: No source specified. Usage: nova get <source>\n"));
+                process.exit(1);
+            }
+            getDependency(cliArgs[1]).then(() => {
+                process.exit(0);
+            }).catch(e => {
+                console.log(chalk.red.bold(`\n  Import Error: ${e.message}\n`));
+                process.exit(1);
+            });
+            break;
+
+        case "clean":
+            import("./runtime/library_manager").then(m => {
+                m.LibraryManager.clean();
+                process.exit(0);
             });
             break;
 
