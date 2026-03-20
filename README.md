@@ -1,9 +1,12 @@
-# NovaScript (v5.5.5) - Production Grade!
+# NovaScript (v6.0.0) - Zero Configuration, Infinite Connectivity!
 
-NovaScript is an English-like programming language with a hybrid syntax that balances readability and performance. Now updated to v5.5.5, it is specifically designed to be highly logical, natively cross-platform, and perfectly suitable for production.
+NovaScript is an English-like programming language built for "Zero Configuration" development. Now updated to v6.0.0, it features a decentralized global import engine that eliminates local `node_modules` and allows direct imports from NPM, GitHub, and HTTPS.
 
-## Core Features (v5.5.5)
+## Core Features (v6.0.0)
 
+- **Decentralized Global Import Engine:** Import from `npm:`, `github:`, `https:`, and `node:` directly.
+- **Zero Configuration:** No `node_modules`, no `package.json` for small projects, just run.
+- **Global Caching:** Dependencies are cached once in `~/.nova_libs/` and reused everywhere.
 - **Async/Await:** Powerful asynchronous programming model for non-blocking operations.
 - **Error Handling:** Robust `try`, `catch`, `finally`, and `throw` statements.
 - **Advanced Flow Control:** `switch`, `case`, `default`, `break`, and `continue`.
@@ -99,6 +102,8 @@ print("Platform:", Sys.platform)
 nova                  # Start the interactive REPL
 nova run script.nv    # Run a NovaScript file
 nova script.nv        # Shorthand run (backward compatible)
+nova get <source>     # Pre-fetch dependency (npm:, github:, https:)
+nova clean            # Clear the global library cache (~/.nova_libs)
 nova version          # Print current version
 nova help             # Print help
 ```
