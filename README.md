@@ -1,6 +1,6 @@
-# NovaScript (v6.0.0) - Zero Configuration, Infinite Connectivity!
+# NovaScript (v6.0.0-dev) - Zero Configuration, Infinite Connectivity!
 
-NovaScript is an English-like programming language built for "Zero Configuration" development. Now updated to v6.0.0, it features a decentralized global import engine that eliminates local `node_modules` and allows direct imports from NPM, GitHub, and HTTPS.
+NovaScript is an English-like programming language built for "Zero Configuration" development. Now updated to v6.0.0-dev, it features a decentralized global import engine that eliminates local `node_modules` and allows direct imports from NPM, GitHub, and HTTPS.
 
 ## Core Features (v6.0.0)
 

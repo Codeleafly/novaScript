@@ -18,7 +18,7 @@ import { createHTTPModule } from "./runtime/native/http_module";
 import { createSysModule } from "./runtime/native/sys_module";
 
 const prompt = promptSync({ sigint: true });
-const VERSION = "v6.0.0";
+const VERSION = "v6.0.0-dev";
 
 function stringify(val: RuntimeVal): string {
     switch (val.type) {
