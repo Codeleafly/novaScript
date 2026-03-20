@@ -1,6 +1,6 @@
 # tests/10_io.nv
 
-print("--- Interactive I/O Tests ---")
+print("--- NovaScript v5.5.5: Interactive I/O Tests ---")
 print("(This test requires user input)")
 
 let name = input("Enter your name: ")

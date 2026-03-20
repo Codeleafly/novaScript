@@ -1,6 +1,6 @@
 # tests/01_variables.nv
 
-print("--- Variable & Constant Tests ---")
+print("--- NovaScript v5.5.5: Variable & Constant Tests ---")
 
 # Variables
 let x = 10

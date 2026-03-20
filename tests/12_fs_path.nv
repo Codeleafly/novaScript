@@ -1,6 +1,6 @@
 # tests/12_fs_path.nv
 
-print("--- FS & Path Module Tests (v4.1.0) ---")
+print("--- NovaScript v5.5.5: File Path Utility Tests ---")
 
 let dir = "tests/test_dir"
 let file = Path.join(dir, "inner.txt")

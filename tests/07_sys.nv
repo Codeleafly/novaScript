@@ -1,6 +1,6 @@
 # tests/07_sys.nv
 
-print("--- Sys Library Tests ---")
+print("--- NovaScript v5.5.5: System (Sys) Module Tests ---")
 
 print("Sys.platform:", Sys.platform)
 print("Sys.arch:", Sys.arch)

@@ -1,6 +1,6 @@
 # tests/06_math.nv
 
-print("--- Math Library Tests ---")
+print("--- NovaScript v5.5.5: Math Utility Tests ---")
 
 print("Math.pi:", Math.pi)
 print("Math.sqrt(25):", Math.sqrt(25))

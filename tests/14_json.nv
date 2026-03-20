@@ -1,6 +1,6 @@
 # tests/14_json.nv
 
-print("--- JSON Module Tests (v4.1.0) ---")
+print("--- NovaScript v5.5.5: JSON Parsing & Stringify ---")
 
 let user = {
     name = "Raj",

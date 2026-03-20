@@ -1,6 +1,6 @@
 # tests/08_file.nv
 
-print("--- File Library Tests ---")
+print("--- NovaScript v5.5.5: File System (FS) Basic Tests ---")
 
 let filename = "tests/test_data.txt"
 let message = "Testing NovaScript File I/O v4"

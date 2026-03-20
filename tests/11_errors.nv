@@ -1,6 +1,6 @@
 # tests/11_errors.nv
 
-print("--- Error Handling Demonstration ---")
+print("--- NovaScript v5.5.5: Error Handling (try-catch-finally) ---")
 print("This file will trigger a syntax error on the next line.")
 
 # Intentional Syntax Error: missing =

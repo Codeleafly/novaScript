@@ -1,6 +1,6 @@
 # tests/05_collections.nv
 
-print("--- Objects & Arrays Tests ---")
+print("--- NovaScript v5.5.5: Collections (Objects & Arrays) ---")
 
 # Arrays
 let numbers = [1, 2, 3, 4, 5]

@@ -1,6 +1,6 @@
 # tests/03_control_flow.nv
 
-print("--- Control Flow Tests ---")
+print("--- NovaScript v5.5.5: Control Flow (if-else, while, for) ---")
 
 # If-Else
 let age = 20

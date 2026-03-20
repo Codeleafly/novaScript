@@ -1,9 +1,9 @@
 # tests/09_modules.nv
 
-print("--- Module Include Tests ---")
+print("--- NovaScript v5.5.5: Module Include Tests ---")
 
 # Include the library file
-let myMod = include("tests/09_lib.nv")
+let myMod = include("./09_lib.nv")
 
 print("Accessing lib_name from module:", myMod.lib_name)
 let res = myMod.lib_multiply(5, 5)

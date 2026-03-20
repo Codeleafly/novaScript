@@ -1,5 +1,5 @@
 # tests/23_mini_lexer.nv
-print("--- Mini Lexer (NovaScript written in NovaScript!) ---")
+print("--- NovaScript v5.5.5: Mini Lexer (Bootstrapping Demo) ---")
 
 # This proves NovaScript 5.5.0 can handle complex logic loops, array manipulation and string slicing!
 fn tokenize(source) {

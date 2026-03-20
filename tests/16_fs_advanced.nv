@@ -1,6 +1,6 @@
 # tests/16_fs_advanced.nv
 
-print("--- Advanced FS Module Tests ---")
+print("--- NovaScript v5.5.5: Advanced File System (FS) ---")
 
 let testDir = "./test_fs_v5"
 

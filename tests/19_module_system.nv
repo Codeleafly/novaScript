@@ -1,9 +1,9 @@
 # tests/19_module_system.nv
 
-print("--- Module System Tests ---")
+print("--- NovaScript v5.5.5: Advanced Module System (Exports) ---")
 
 # Import the module
-let myMod = include("tests/test_module.nv")
+let myMod = include("./test_module.nv")
 
 print("Module object:", myMod)
 

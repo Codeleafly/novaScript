@@ -1,6 +1,6 @@
 # tests/02_expressions.nv
 
-print("--- Expression & Operator Tests ---")
+print("--- NovaScript v5.5.5: Expressions & Operators ---")
 
 # Arithmetic
 print("10 + 5 =", 10 + 5)

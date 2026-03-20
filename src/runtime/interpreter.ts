@@ -575,14 +575,22 @@ async function eval_for_statement(
     return lastVal;
 }
 
-async function eval_module(modulePath: string, parentEnv: Environment): Promise<RuntimeVal> {
-    const absolutePath = path.resolve(modulePath);
+async function eval_module(modulePath: string, parentEnv: Environment, callerFile?: string): Promise<RuntimeVal> {
+    let absolutePath: string;
+    
+    // Resolve relative path based on caller file if provided
+    if (callerFile && callerFile !== "repl" && !path.isAbsolute(modulePath)) {
+        absolutePath = path.resolve(path.dirname(callerFile), modulePath);
+    } else {
+        absolutePath = path.resolve(modulePath);
+    }
+
     if (moduleCache.has(absolutePath)) {
         return moduleCache.get(absolutePath)!;
     }
 
     if (!fs.existsSync(absolutePath)) {
-        throw new Error(`Cannot find module: ${modulePath}`);
+        throw new Error(`Cannot find module: ${modulePath} (resolved to: ${absolutePath})`);
     }
     
     const source = fs.readFileSync(absolutePath, "utf-8");
@@ -699,7 +707,7 @@ async function eval_import_statement(
     env: Environment
 ): Promise<RuntimeVal> {
     try {
-        await eval_module(stmt.moduleName, env);
+        await eval_module(stmt.moduleName, env, (stmt as any).file);
         return MK_NULL();
     } catch (e: any) {
         throw new NovaImportError(e.message, getLocation(stmt));
@@ -711,7 +719,7 @@ async function eval_import_expr(
     env: Environment
 ): Promise<RuntimeVal> {
     try {
-        return await eval_module(expr.moduleName, env);
+        return await eval_module(expr.moduleName, env, (expr as any).file);
     } catch (e: any) {
         throw new NovaImportError(e.message, getLocation(expr));
     }

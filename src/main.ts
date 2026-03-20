@@ -467,7 +467,7 @@ function repl() {
     const sep = chalk.hex("#6D28D9")("━".repeat(48));
     console.log("");
     console.log("  " + sep);
-    console.log("  " + chalk.hex("#A78BFA")("✧") + "  " + chalk.hex("#C084FC").bold("Nova") + chalk.white.bold("Script") + "  " + chalk.hex("#A78BFA")("✧") + "  " + chalk.hex("#DDD6FE")("Evolutionary REPL") + "  " + chalk.hex("#A78BFA")("✧") + "  " + v);
+    console.log("  " + chalk.hex("#A78BFA")("✧") + "  " + chalk.hex("#C084FC").bold("Nova") + chalk.white.bold("Script") + "  " + chalk.hex("#A78BFA")("✧") + "  " + v);
     console.log("  " + sep);
     console.log("  " + chalk.hex("#9D5CF6")("▸") + " " + chalk.gray(".help") + chalk.hex("#7C3AED")("  •  ") + chalk.gray(".editor") + chalk.hex("#7C3AED")("  •  ") + chalk.gray(".reset") + chalk.hex("#7C3AED")("  •  ") + chalk.gray(".clear") + chalk.hex("#7C3AED")("  •  ") + chalk.gray(".exit"));
     console.log("");

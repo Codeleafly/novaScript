@@ -1,5 +1,5 @@
 # tests/22_regex_date_base64.nv
-print("--- Regex, Date & Base64 Tests (v5.5.0) ---")
+print("--- NovaScript v5.5.5: Regex, Date, and Base64 Utils ---")
 
 # Regex
 let emailStr = "Contact us at support@novascript.org or sales@novascript.org!"

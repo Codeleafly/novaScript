@@ -1,6 +1,6 @@
 # tests/04_functions.nv
 
-print("--- Function & Recursion Tests ---")
+print("--- NovaScript v5.5.5: Functions & Recursion Tests ---")
 
 # Simple function
 fn greet(name) {

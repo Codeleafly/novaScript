@@ -1,6 +1,6 @@
 # tests/18_http_server.nv
 
-print("--- HTTP Server Tests ---")
+print("--- NovaScript v5.5.5: HTTP Server Module ---")
 
 fn handleGet(req, res) {
     print("Received GET request at /")

@@ -1,6 +1,6 @@
 # tests/17_http_client.nv
 
-print("--- HTTP Client Tests ---")
+print("--- NovaScript v5.5.5: HTTP Client Module (GET/POST) ---")
 
 # 1. GET Request
 print("Sending GET request to JSONPlaceholder...")
