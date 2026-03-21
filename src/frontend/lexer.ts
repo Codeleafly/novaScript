@@ -30,8 +30,8 @@ export enum TokenType {
   Assign,      // =
   PlusEquals,  // +=
   MinusEquals, // -=
-  Equals,      // ==
-  NotEquals,   // !=
+  Equals,      // == or is
+  NotEquals,   // != or isnt
   LessThan,    // <
   LessEquals,  // <=
   GreaterThan, // >
@@ -47,9 +47,9 @@ export enum TokenType {
   Caret,       // ^
   ShiftLeft,   // <<
   ShiftRight,  // >>
-  AndLogic,    // &&
-  OrLogic,     // ||
-  NotLogic,    // !
+  AndLogic,    // && or and
+  OrLogic,     // || or or
+  NotLogic,    // ! or not
   
   OpenParen,   // (
   CloseParen,  // )
@@ -59,6 +59,13 @@ export enum TokenType {
   CloseBracket,// ]
   Comma,
   Dot,
+  Colon,       // :
+  SemiColon,   // ;
+  Arrow,       // =>
+  DotDotDot,   // ...
+  Question,    // ?
+  NullCoalesce,// ??
+  OptionalChain,// ?.
 
   // Keywords
   Switch,
@@ -72,6 +79,7 @@ export enum TokenType {
   Await,
   Break,
   Continue,
+  Export,
   
   // Special
   EOF,
@@ -90,11 +98,15 @@ const KEYWORDS: Record<string, TokenType> = {
   "to": TokenType.To,
   "return": TokenType.Return,
   "include": TokenType.Include,
-  "and": TokenType.And,
-  "or": TokenType.Or,
-  "not": TokenType.Not,
-  "is": TokenType.Is,
-  "isnt": TokenType.Isnt,
+  "import": TokenType.Include,
+  
+  // Aliases (Mapped to logic tokens directly)
+  "and": TokenType.AndLogic,
+  "or": TokenType.OrLogic,
+  "not": TokenType.NotLogic,
+  "is": TokenType.Equals,
+  "isnt": TokenType.NotEquals,
+
   "switch": TokenType.Switch,
   "case": TokenType.Case,
   "default": TokenType.Default,
@@ -106,6 +118,7 @@ const KEYWORDS: Record<string, TokenType> = {
   "await": TokenType.Await,
   "break": TokenType.Break,
   "continue": TokenType.Continue,
+  "export": TokenType.Export,
 };
 
 export interface Token {
@@ -141,7 +154,12 @@ export function tokenize(sourceCode: string): Token[] {
       pushToken(src.shift()!, TokenType.CloseBracket);
     } else if (src[0] === ",") {
       pushToken(src.shift()!, TokenType.Comma);
-    } else if (src[0] === ".") {
+    } else if (src[0] === ":") {
+      pushToken(src.shift()!, TokenType.Colon);
+    } else if (src[0] === ";") {
+      pushToken(src.shift()!, TokenType.SemiColon);
+    }
+ else if (src[0] === ".") {
       pushToken(src.shift()!, TokenType.Dot);
     } else if (src[0] === "+") {
         if (src[1] === "=") {
@@ -176,10 +194,15 @@ export function tokenize(sourceCode: string): Token[] {
              src.shift(); src.shift(); column += 2;
              tokens.push({ value: "==", type: TokenType.Equals, line, column: column - 2 });
              continue;
+        } else if (src[1] === ">") {
+            src.shift(); src.shift(); column += 2;
+            tokens.push({ value: "=>", type: TokenType.Arrow, line, column: column - 2 });
+            continue;
         } else {
              pushToken(src.shift()!, TokenType.Assign);
         }
-    } else if (src[0] === "!") {
+    }
+ else if (src[0] === "!") {
         if (src[1] === "=") {
              src.shift(); src.shift(); column += 2;
              tokens.push({ value: "!=", type: TokenType.NotEquals, line, column: column - 2 });
@@ -229,6 +252,18 @@ export function tokenize(sourceCode: string): Token[] {
         }
     } else if (src[0] === "^") {
         pushToken(src.shift()!, TokenType.Caret);
+    } else if (src[0] === "?") {
+        if (src[1] === "?") {
+            src.shift(); src.shift(); column += 2;
+            tokens.push({ value: "??", type: TokenType.NullCoalesce, line, column: column - 2 });
+            continue;
+        } else if (src[1] === ".") {
+            src.shift(); src.shift(); column += 2;
+            tokens.push({ value: "?.", type: TokenType.OptionalChain, line, column: column - 2 });
+            continue;
+        } else {
+            pushToken(src.shift()!, TokenType.Question);
+        }
     }
 
     // 2. Handle Comments, Whitespace, and Multi-character Tokens
@@ -254,13 +289,14 @@ export function tokenize(sourceCode: string): Token[] {
         }
         tokens.push({ value: num, type: TokenType.Number, line, column: column - num.length });
         continue;
-    } else if (src[0] === '"') {
+    } else if (src[0] === '"' || src[0] === "'") {
+        const quote = src.shift()!;
         const startLine = line;
         const startColumn = column;
-        src.shift(); column++;
+        column++;
         let str = "";
-        while (src.length > 0 && src[0] !== '"') {
-            if (src[0] === '\\') {
+        while (src.length > 0 && (src[0] as string) !== quote) {
+            if ((src[0] as string) === '\\') {
                 src.shift(); column++;
                 const escapeChar = src.shift();
                 column++;
@@ -274,6 +310,7 @@ export function tokenize(sourceCode: string): Token[] {
                     case 'v': str += '\v'; break;
                     case '\\': str += '\\'; break;
                     case '"': str += '"'; break;
+                    case "'": str += "'"; break;
                     case 'e': str += '\x1b'; break;
                     case 'x': {
                         let hex = (src.shift() || "") + (src.shift() || "");
@@ -288,7 +325,7 @@ export function tokenize(sourceCode: string): Token[] {
                 column++;
             }
         }
-        if (src.length > 0 && src[0] === '"') {
+        if (src.length > 0 && src[0] === quote) {
             src.shift(); column++;
         }
         tokens.push({ value: str, type: TokenType.String, line: startLine, column: startColumn });

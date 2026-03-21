@@ -1,0 +1,58 @@
+# NovaScript v6.0.5-dev Feature Test
+
+print("--- Testing NovaScript v6.0.5-dev ---")
+
+# 1. Syntactic Harmony: Object Literals (Colons + String Keys)
+let user = {
+    "full-name": "Nova Warrior",
+    age: 25,
+    status: "Active"
+}
+print("User Name:", user["full-name"])
+print("User Status:", user.status)
+
+# 2. Arrow Functions
+let add = (a, b) => a + b
+let square = x => x * x
+print("2 + 3 =", add(2, 3))
+print("4^2 =", square(4))
+
+# 3. JS-style for loop
+print("Looping 1 to 3:")
+for (let i = 1; i <= 3; i = i + 1) {
+    print(" - i is", i)
+}
+
+# 4. Null Coalescing ??
+let name = null
+let defaultName = "Guest"
+print("Effective Name:", name ?? defaultName)
+print("Explicit Name:", "Admin" ?? defaultName)
+
+# 5. Logical Aliases
+if (true and 1 is 1) {
+    print("Logic check: 'and' & 'is' working.")
+}
+
+# 6. Global Helper: parseJson
+let jsonStr = '{"version": "6.0.5", "dev": true}'
+let data = parseJson(jsonStr)
+print("JSON Version:", data.version)
+
+# 7. Native Interop (setTimeout with wrapNovaFn)
+print("Setting a timer for 500ms...")
+global timerFinished = false
+# setTimeout is native in Node, Nova passes the arrow fn
+# Node will receive a wrapped function returning a promise
+# Global setTimeout call (injected via global)
+include("node:timers").setTimeout(() => {
+    print("Timer fired!")
+    timerFinished = true
+}, 500)
+
+# 8. Single Quotes & Chalk (v6.0.5 Special)
+print('Hello from single quotes!')
+print('Blue text bold red!')
+# 9. HTTP Custom Headers
+
+print("--- Tests Finished ---")

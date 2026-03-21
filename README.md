@@ -1,15 +1,18 @@
-# NovaScript (v6.0.0-dev) - Zero Configuration, Infinite Connectivity!
+# NovaScript (v6.1.0-dev) - Zero Configuration, Infinite Connectivity!
 
-NovaScript is an English-like programming language built for "Zero Configuration" development. Now updated to v6.0.0-dev, it features a decentralized global import engine that eliminates local `node_modules` and allows direct imports from NPM, GitHub, and HTTPS.
+NovaScript is an English-like programming language built for "Zero Configuration" development. Now updated to v6.1.0-dev, it features a decentralized global import engine, global tool installations, modern ES6-style exports, optional chaining (`?.`), and beautiful terminal diagnostics!
 
-## Core Features (v6.0.0)
+## Core Features (v6.1.0-dev)
 
 - **Decentralized Global Import Engine:** Import from `npm:`, `github:`, `https:`, and `node:` directly.
+- **Global Tools Installation:** Easily install global CLI tools via `nova install -g npm:my-tool`.
+- **Beautiful Error Diagnostics:** Premium developer experience with stylized, context-rich error reporting using Boxen.
+- **Optional Chaining (`?.`):** Safely access nested object properties.
+- **Modern Imports/Exports:** `import { x } from "mod"` and `export let x = 1` syntax natively supported.
 - **Zero Configuration:** No `node_modules`, no `package.json` for small projects, just run.
 - **Global Caching:** Dependencies are cached once in `~/.nova_libs/` and reused everywhere.
 - **Async/Await:** Powerful asynchronous programming model for non-blocking operations.
 - **Error Handling:** Robust `try`, `catch`, `finally`, and `throw` statements.
-- **Advanced Flow Control:** `switch`, `case`, `default`, `break`, and `continue`.
 - **Hybrid Syntax:** Uses `{}` for blocks, `()` for expressions and function calls.
 - **English Keywords:** `is` (==), `isnt` (!=), `and`, `or`, `not`, `let`, `fn`, `if`, `else`, `while`, `for`, `from`, `to`, `return`, `include`.
 - **Expanded Operators:** Arithmetical (`**`, `%`), Logical (`&&`, `||`, `!`), Bitwise (`&`, `|`, `^`, `<<`, `>>`), and Assignment (`+=`, `-=`).
@@ -29,15 +32,29 @@ let x = 10
 const pi = 3.14
 ```
 
-### Functions
+### Functions & Exports
 ```novascript
-fn greet(name) {
+export fn greet(name) {
     print("Hello", name)
 }
 
-fn add(a, b) {
-    return a + b
-}
+export let pi = 3.14
+
+// In another file:
+import { greet, pi } from "./my_module.nv"
+greet("User")
+```
+
+### Optional Chaining & Objects
+```novascript
+let user = { profile: { details: { age: 25 } } }
+
+// Safely access without throwing ReferenceError
+let age = user?.profile?.details?.age
+let oops = user?.missingProperty?.value
+
+print("Age:", age)
+print("Oops:", oops) // null
 ```
 
 ### Control Flow
@@ -102,6 +119,7 @@ print("Platform:", Sys.platform)
 nova                  # Start the interactive REPL
 nova run script.nv    # Run a NovaScript file
 nova script.nv        # Shorthand run (backward compatible)
+nova install -g <src> # Install an executable tool globally (e.g., npm:boxen)
 nova get <source>     # Pre-fetch dependency (npm:, github:, https:)
 nova clean            # Clear the global library cache (~/.nova_libs)
 nova version          # Print current version

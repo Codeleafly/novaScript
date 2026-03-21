@@ -1,6 +1,6 @@
 
-import { RuntimeVal, MK_NATIVE_FN, MK_STRING, MK_BOOL, MK_NULL, MK_NUMBER, MK_OBJECT, FunctionVal } from "../values";
-import { evaluate, ReturnException } from "../interpreter";
+import { RuntimeVal, MK_NATIVE_FN, MK_STRING, MK_BOOL, MK_NULL, MK_NUMBER, MK_OBJECT, FunctionVal, ReturnException } from "../values";
+import { evaluate } from "../interpreter";
 import Environment from "../environment";
 import { execSync } from "child_process";
 import * as http from "http";
@@ -80,13 +80,22 @@ export function createHTTPModule() {
 
     httpProps.set("get", MK_NATIVE_FN((args) => {
         const url = (args[0] as any).value;
-        return makeRequest("GET", url);
+        const headersVal = args[1] && args[1].type === "object" ? (args[1] as any).properties : undefined;
+        const headers: Record<string, string> = {};
+        if (headersVal) {
+            headersVal.forEach((v: any, k: string) => headers[k] = v.value);
+        }
+        return makeRequest("GET", url, undefined, headers);
     }));
 
     httpProps.set("post", MK_NATIVE_FN((args) => {
         const url = (args[0] as any).value;
         const data = (args[1] as any).value;
-        const headers = { 'Content-Type': 'application/json' }; // Assume JSON for simplicity
+        const headersVal = args[2] && args[2].type === "object" ? (args[2] as any).properties : undefined;
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (headersVal) {
+            headersVal.forEach((v: any, k: string) => headers[k] = v.value);
+        }
         return makeRequest("POST", url, data, headers);
     }));
 
@@ -121,8 +130,16 @@ export function createHTTPModule() {
                 const resProps = new Map<string, RuntimeVal>();
                 resProps.set("send", MK_NATIVE_FN((args) => {
                     const data = (args[0] as any).value;
+                    const headersVal = args[1] && args[1].type === "object" ? (args[1] as any).properties : undefined;
+                    
                     if (!res.headersSent) {
-                        res.writeHead(200, { "Content-Type": "text/plain" });
+                        const h: Record<string, string> = { "Content-Type": "text/plain" };
+                        if (headersVal) {
+                            headersVal.forEach((v: any, k: string) => {
+                                h[k] = v.value;
+                            });
+                        }
+                        res.writeHead(200, h);
                     }
                     res.end(data);
                     return MK_NULL();

@@ -46,7 +46,15 @@ export interface ArrayVal extends RuntimeVal {
     elements: RuntimeVal[];
 }
 
-export type FunctionCall = (args: RuntimeVal[], env: Environment) => RuntimeVal;
+export class ReturnException extends Error {
+    value: RuntimeVal;
+    constructor(value: RuntimeVal) {
+        super("Return");
+        this.value = value;
+    }
+}
+
+export type FunctionCall = (args: RuntimeVal[], env: Environment) => RuntimeVal | Promise<RuntimeVal>;
 
 export interface NativeFnVal extends RuntimeVal {
   type: "native-fn";
@@ -96,6 +104,37 @@ export function MK_ARRAY(elements: RuntimeVal[]): ArrayVal {
 }
 
 /**
+ * Converts a NovaScript RuntimeVal back into a native JavaScript value.
+ * This is used when passing NovaScript data to native functions or modules.
+ */
+export function runtimeToJsVal(val: RuntimeVal, fnWrapper?: (f: FunctionVal) => Function): any {
+    if (val.underlyingValue !== undefined) return val.underlyingValue;
+
+    switch (val.type) {
+        case "number":
+        case "string":
+        case "boolean":
+            return (val as any).value;
+        case "null":
+            return null;
+        case "array":
+            return (val as ArrayVal).elements.map(e => runtimeToJsVal(e, fnWrapper));
+        case "object":
+            const out: any = {};
+            (val as ObjectVal).properties.forEach((v, k) => {
+                out[k] = runtimeToJsVal(v, fnWrapper);
+            });
+            return out;
+        case "promise":
+            return (val as PromiseVal).promise;
+        case "function":
+            return fnWrapper ? fnWrapper(val as FunctionVal) : val;
+        default:
+            return val;
+    }
+}
+
+/**
  * Converts a native JavaScript object/value into a NovaScript RuntimeVal.
  * This is crucial for bridging NPM modules into NovaScript.
  */
@@ -113,7 +152,9 @@ export function jsToRuntimeVal(jsObj: any, seen: Set<any> = new Set()): RuntimeV
     if (typeof jsObj === "boolean") return MK_BOOL(jsObj);
     
     if (Array.isArray(jsObj)) {
-        return MK_ARRAY(jsObj.map(item => jsToRuntimeVal(item, seen)));
+        const arr = MK_ARRAY(jsObj.map(item => jsToRuntimeVal(item, seen)));
+        arr.underlyingValue = jsObj;
+        return arr;
     }
     
     const props = new Map<string, RuntimeVal>();
@@ -121,31 +162,23 @@ export function jsToRuntimeVal(jsObj: any, seen: Set<any> = new Set()): RuntimeV
     const collectProperties = (obj: any) => {
         if (!obj || obj === Object.prototype || obj === Function.prototype) return;
         
-        // Use getOwnPropertyNames to discover even non-enumerable members
+        // Scan current level
         for (const key of Object.getOwnPropertyNames(obj)) {
-            // Exclude standard JS noise and special properties
             if (key === "prototype" || key === "length" || key === "name" || 
                 key === "caller" || key === "arguments" || key === "constructor") continue;
             
-            if (props.has(key)) continue; // Already found in child/sibling
+            if (props.has(key)) continue;
 
             try {
                 props.set(key, jsToRuntimeVal(obj[key], seen));
-            } catch (e) {
-                // Ignore properties that can't be accessed (e.g., strict mode blockers)
-            }
+            } catch (e) {}
         }
-        
-        // Discover inherited properties from prototype chain
-        collectProperties(Object.getPrototypeOf(obj));
+        // Limit recursion depth for performance or rely on lazy resolution for prototype chain
     };
 
     if (typeof jsObj === "function") {
         const fn = MK_NATIVE_FN((args) => {
-            const jsArgs = args.map(arg => {
-                const val = (arg as any).value;
-                return val !== undefined ? val : arg;
-            });
+            const jsArgs = args.map(arg => runtimeToJsVal(arg));
             const result = jsObj(...jsArgs);
             return jsToRuntimeVal(result);
         });
@@ -162,6 +195,32 @@ export function jsToRuntimeVal(jsObj: any, seen: Set<any> = new Set()): RuntimeV
         collectProperties(jsObj);
         return obj;
     }
-
+    
     return MK_NULL();
+}
+
+/**
+ * Returns a plain string representation of a RuntimeVal without colors.
+ */
+export function plainStringify(val: RuntimeVal): string {
+    switch (val.type) {
+        case "string": return (val as any).value;
+        case "number": return (val as any).value.toString();
+        case "boolean": return (val as any).value.toString();
+        case "null": return "null";
+        case "promise": return "[Promise]";
+        case "array": 
+            return "[" + (val as any).elements.map((e: any) => plainStringify(e)).join(", ") + "]";
+        case "object": 
+            const props = Array.from((val as any).properties.entries())
+                .map((entry: any) => {
+                    const [k, v] = entry;
+                    return `${k}: ${plainStringify(v as any)}`;
+                })
+                .join(", ");
+            return "{ " + props + " }";
+        case "function": return "[Function]";
+        case "native-fn": return "[Native Function]";
+        default: return JSON.stringify(val);
+    }
 }

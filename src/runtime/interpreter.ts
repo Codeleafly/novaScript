@@ -3,8 +3,8 @@
 
 import { 
     RuntimeVal, NumberVal, StringVal, MK_NUMBER, MK_NULL, MK_OBJECT, MK_STRING, MK_BOOL, 
-    MK_NATIVE_FN, MK_ARRAY, jsToRuntimeVal, FunctionVal, ObjectVal, ArrayVal, 
-    NativeFnVal, BooleanVal, NullVal, MK_PROMISE, PromiseVal
+    MK_NATIVE_FN, MK_ARRAY, jsToRuntimeVal, runtimeToJsVal, FunctionVal, ObjectVal, ArrayVal, 
+    NativeFnVal, BooleanVal, NullVal, MK_PROMISE, PromiseVal, plainStringify, ReturnException
 } from "./values";
 import { 
     BinaryExpr, Identifier, NodeType, NumericLiteral, Program, Statement, 
@@ -12,7 +12,7 @@ import {
     StringLiteral, IfStatement, WhileStatement, ReturnStatement, ArrayLiteral, 
     MemberExpr, ForStatement, ImportStatement, ImportExpr, GlobalDeclaration,
     SwitchStatement, CaseStatement, TryCatchStatement, ThrowStatement,
-    BreakStatement, ContinueStatement, AwaitExpr
+    BreakStatement, ContinueStatement, AwaitExpr, ArrowFnExpr, ExportDeclaration, NamedImportStatement
 } from "../frontend/ast";
 import * as fs from "fs";
 import * as path from "path";
@@ -27,13 +27,6 @@ import { LibraryManager } from "./library_manager";
 // Module cache to avoid re-evaluating the same module multiple times
 const moduleCache = new Map<string, RuntimeVal>();
 
-export class ReturnException extends Error {
-    value: RuntimeVal;
-    constructor(value: RuntimeVal) {
-        super("Return");
-        this.value = value;
-    }
-}
 
 export class BreakException extends Error {
     constructor() {
@@ -146,8 +139,25 @@ export async function evaluate(astNode: Statement, env: Environment): Promise<Ru
     case "ImportStatement":
         return await eval_import_statement(astNode as ImportStatement, env);
     
+    case "NamedImportStatement":
+        return await eval_named_import_statement(astNode as NamedImportStatement, env);
+
     case "ImportExpr":
         return await eval_import_expr(astNode as ImportExpr, env);
+
+    case "ArrowFnExpr":
+        const arrowFn = astNode as ArrowFnExpr;
+        return {
+            type: "function",
+            name: "anonymous",
+            parameters: arrowFn.parameters,
+            declarationEnv: env,
+            body: Array.isArray(arrowFn.body) ? arrowFn.body : [ { kind: "ReturnStatement", value: arrowFn.body } as any ],
+            async: arrowFn.async,
+        } as FunctionVal;
+        
+    case "ExportDeclaration":
+        return await eval_export_declaration(astNode as ExportDeclaration, env);
 
     default:
       throw new NovaRuntimeError(
@@ -315,6 +325,11 @@ async function eval_member_expr(
         property = (expr.property as Identifier).symbol;
     }
 
+    if (object.type === "null") {
+        if (expr.optional) return MK_NULL();
+        throw new NovaRuntimeError(`Cannot read property '${property}' of null`, getLocation(expr));
+    }
+
     if (object.type === "array") {
         const arr = (object as ArrayVal).elements;
         if (numericIndex >= 0) {
@@ -330,6 +345,7 @@ async function eval_member_expr(
     }
     
     if (object.type !== "object" && object.type !== "native-fn") {
+        if (expr.optional) return MK_NULL();
         throw new NovaTypeError("Cannot access property of non-object. Found: " + object.type, getLocation(expr));
     }
     
@@ -358,8 +374,27 @@ async function eval_call_expr(
   }
   const fn = await evaluate(expr.caller, env);
 
+  // Handle optional chaining for calls: obj?.method()
+  if (fn.type === "null" && expr.caller.kind === "MemberExpr" && (expr.caller as MemberExpr).optional) {
+      return MK_NULL();
+  }
+
   if (fn.type == "native-fn") {
-    return (fn as NativeFnVal).call(args, env);
+    const fnVal = fn as NativeFnVal;
+    // Map Nova values to JS values, wrapping Nova functions so JS can call them
+    const jsArgs = args.map(arg => runtimeToJsVal(arg, (f) => wrapNovaFn(f, env)));
+    
+    // If it's a direct wrap of a JS function, call it with JS args
+    if (fnVal.underlyingValue && typeof fnVal.underlyingValue === "function") {
+        try {
+            const result = fnVal.underlyingValue(...jsArgs);
+            return jsToRuntimeVal(result);
+        } catch (e: any) {
+            throw new NovaRuntimeError(`Native call error: ${e.message}`, getLocation(expr));
+        }
+    }
+    
+    return await fnVal.call(args, env);
   }
 
   if (fn.type == "function") {
@@ -457,8 +492,17 @@ async function eval_binary_expr(
     );
   }
   
-  if (lhs.type == "string" && rhs.type == "string" && op === "+") {
-      return MK_STRING((lhs as StringVal).value + (rhs as StringVal).value);
+  if (op === "+") {
+      if (lhs.type === "string" || rhs.type === "string") {
+          const lStr = lhs.type === "string" ? (lhs as StringVal).value : plainStringify(lhs);
+          const rStr = rhs.type === "string" ? (rhs as StringVal).value : plainStringify(rhs);
+          return MK_STRING(lStr + rStr);
+      }
+  }
+
+  // Null Coalescing Operator ??
+  if (op === "??") {
+      return (lhs.type !== "null") ? lhs : rhs;
   }
 
   return MK_NULL();
@@ -550,8 +594,39 @@ async function eval_for_statement(
     stmt: ForStatement,
     env: Environment
 ): Promise<RuntimeVal> {
-    const startVal = await evaluate(stmt.start, env);
-    const endVal = await evaluate(stmt.end, env);
+    if (stmt.init || stmt.condition || stmt.update) {
+        // JS-style loop: for (init; condition; update)
+        const scope = new Environment(env, "block");
+        if (stmt.init) await evaluate(stmt.init, scope);
+        
+        let lastVal: RuntimeVal = MK_NULL();
+        while (true) {
+            if (stmt.condition) {
+                const condition = await evaluate(stmt.condition, scope);
+                if ((condition as BooleanVal).value !== true) break;
+            }
+            
+            const iterationScope = new Environment(scope, "block");
+            try {
+                for (const s of stmt.body) {
+                    lastVal = await evaluate(s, iterationScope);
+                }
+            } catch (e) {
+                if (e instanceof BreakException) break;
+                if (e instanceof ContinueException) {
+                    if (stmt.update) await evaluate(stmt.update, scope);
+                    continue;
+                }
+                throw e;
+            }
+            if (stmt.update) await evaluate(stmt.update, scope);
+        }
+        return lastVal;
+    }
+
+    // Nova-style: for i from start to end
+    const startVal = await evaluate(stmt.start!, env);
+    const endVal = await evaluate(stmt.end!, env);
     
     if (startVal.type !== "number" || endVal.type !== "number") {
         throw new NovaTypeError("Repeat loop range must be numbers", getLocation(stmt));
@@ -560,7 +635,7 @@ async function eval_for_statement(
     let lastVal: RuntimeVal = MK_NULL();
     const scope = new Environment(env);
     
-    scope.declareVar(stmt.counter, startVal, false);
+    scope.declareVar(stmt.counter!, startVal, false);
     
     let current = (startVal as NumberVal).value;
     const end = (endVal as NumberVal).value;
@@ -575,13 +650,13 @@ async function eval_for_statement(
             if (e instanceof BreakException) break;
             if (e instanceof ContinueException) {
                 current++;
-                scope.assignVar(stmt.counter, MK_NUMBER(current));
+                scope.assignVar(stmt.counter!, MK_NUMBER(current));
                 continue;
             }
             throw e;
         }
         current++;
-        scope.assignVar(stmt.counter, MK_NUMBER(current));
+        scope.assignVar(stmt.counter!, MK_NUMBER(current));
     }
     
     return lastVal;
@@ -597,8 +672,16 @@ async function eval_module(modulePath: string, parentEnv: Environment, callerFil
         absolutePath = resolved.path;
         isNative = resolved.isNative;
     } else {
-        // Resolve relative path based on caller file if provided
-        if (callerFile && callerFile !== "repl" && !path.isAbsolute(modulePath)) {
+        // Resolve bare module specifiers (e.g., 'chalk') vs relative paths
+        const isBareModule = !modulePath.startsWith(".") && 
+                             !path.isAbsolute(modulePath) && 
+                             !modulePath.endsWith(".nv") && 
+                             !modulePath.endsWith(".nova");
+
+        if (isBareModule && !fs.existsSync(path.resolve(modulePath))) {
+            absolutePath = modulePath;
+            isNative = true;
+        } else if (callerFile && callerFile !== "repl" && !path.isAbsolute(modulePath)) {
             absolutePath = path.resolve(path.dirname(callerFile), modulePath);
         } else {
             absolutePath = path.resolve(modulePath);
@@ -762,13 +845,101 @@ async function eval_import_statement(
     }
 }
 
+async function eval_named_import_statement(
+    stmt: NamedImportStatement,
+    env: Environment
+): Promise<RuntimeVal> {
+    try {
+        const moduleVal = await eval_module(stmt.moduleName, env, (stmt as any).file);
+        
+        if (moduleVal.type !== "object") {
+            throw new NovaImportError(`Module '${stmt.moduleName}' did not export an object`, getLocation(stmt));
+        }
+
+        const exportsMap = (moduleVal as ObjectVal).properties;
+        for (const name of stmt.imports) {
+            if (exportsMap.has(name)) {
+                env.declareVar(name, exportsMap.get(name)!, true);
+            } else {
+                throw new NovaImportError(`Module '${stmt.moduleName}' has no export named '${name}'`, getLocation(stmt));
+            }
+        }
+        return MK_NULL();
+    } catch (e: any) {
+        throw new NovaImportError(e.message, getLocation(stmt));
+    }
+}
+
+async function eval_export_declaration(
+    decl: ExportDeclaration,
+    env: Environment
+): Promise<RuntimeVal> {
+    const value = await evaluate(decl.declaration, env);
+    
+    // Exports are collected in an 'exports' object.
+    // Ensure 'exports' is available in the current environment
+    try {
+        const exportsObj = env.lookupVar("exports");
+        if (exportsObj.type === "object") {
+            let name = "";
+            if (decl.declaration.kind === "VarDeclaration") name = (decl.declaration as VarDeclaration).identifier;
+            else if (decl.declaration.kind === "FunctionDeclaration") name = (decl.declaration as FunctionDeclaration).name;
+            
+            if (name) {
+                (exportsObj as ObjectVal).properties.set(name, value);
+            }
+        }
+    } catch (e) {
+        // If 'exports' wasn't declared, we're likely in REPL or not a module, ignore it silently.
+    }
+
+    return value;
+}
+
 async function eval_import_expr(
     expr: ImportExpr,
     env: Environment
 ): Promise<RuntimeVal> {
     try {
-        return await eval_module(expr.moduleName, env, (expr as any).file);
+        const modNameVal = await evaluate(expr.moduleName, env);
+        if (modNameVal.type !== "string") {
+            throw new NovaImportError("Module name in include() must evaluate to a string.", getLocation(expr));
+        }
+        return await eval_module((modNameVal as StringVal).value, env, (expr as any).file);
     } catch (e: any) {
         throw new NovaImportError(e.message, getLocation(expr));
     }
+}
+
+/**
+ * Wraps a NovaScript function as a native JavaScript function.
+ * This allows passing Nova functions as callbacks to Node.js modules.
+ */
+function wrapNovaFn(func: FunctionVal, env: Environment): Function {
+    return (...jsArgs: any[]) => {
+        const args = jsArgs.map(arg => jsToRuntimeVal(arg));
+        
+        const executeBody = async () => {
+            const scope = new Environment(func.declarationEnv, "function");
+            for (let i = 0; i < func.parameters.length; i++) {
+                scope.declareVar(func.parameters[i], args[i] || MK_NULL(), false);
+            }
+
+            let result: RuntimeVal = MK_NULL();
+            try {
+                for (const stmt of func.body) {
+                    result = await evaluate(stmt, scope);
+                }
+            } catch (e) {
+                if (e instanceof ReturnException) {
+                    result = e.value;
+                } else {
+                    throw e;
+                }
+            }
+            return runtimeToJsVal(result);
+        };
+
+        return executeBody(); // Returns a promise to the JS caller
+    };
 }

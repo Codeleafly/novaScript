@@ -161,6 +161,100 @@ export class LibraryManager {
     }
 
     /**
+     * Installs a module globally by reading its bin field and creating executable shims in ~/.nova/bin
+     */
+    static async installGlobal(modulePath: string) {
+        console.log(chalk.blue(`🚀 Installing global tool: ${modulePath}`));
+        
+        // 1. Resolve and download the package
+        const resolved = await this.resolve(modulePath);
+        
+        // 2. Discover the package root directory
+        let pkgDir = "";
+        if (modulePath.startsWith("npm:")) {
+            const pkgName = modulePath.slice(4).split("@")[0];
+            pkgDir = path.join(this.NPM_DIR, "node_modules", pkgName);
+        } else if (modulePath.startsWith("github:")) {
+            // resolve() returns the main file path for github, so we dirname it
+            pkgDir = path.dirname(resolved.path);
+        } else {
+            throw new Error(`Global installations currently only support npm: and github: sources.`);
+        }
+
+        if (!fs.existsSync(pkgDir)) {
+            throw new Error(`Failed to locate downloaded package directory: ${pkgDir}`);
+        }
+
+        // 3. Look for nova.json or package.json
+        let manifestPath = path.join(pkgDir, "nova.json");
+        if (!fs.existsSync(manifestPath)) {
+            manifestPath = path.join(pkgDir, "package.json");
+        }
+
+        if (!fs.existsSync(manifestPath)) {
+            throw new Error(`No nova.json or package.json found in ${pkgDir}. Cannot install globally.`);
+        }
+
+        const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+        const bin = manifest.bin;
+
+        if (!bin) {
+            throw new Error(`No "bin" field found in manifest of ${modulePath}. Nothing to install.`);
+        }
+
+        // 4. Create global shims in ~/.nova/bin
+        const binDir = path.join(os.homedir(), ".nova", "bin");
+        if (!fs.existsSync(binDir)) {
+            fs.mkdirSync(binDir, { recursive: true });
+        }
+
+        const binsToInstall = typeof bin === "string" ? { [manifest.name || "nova-tool"]: bin } : bin;
+
+        let installedCount = 0;
+        for (const [cmdName, binSource] of Object.entries(binsToInstall)) {
+            const sourceFile = path.resolve(pkgDir, binSource as string);
+            
+            if (!fs.existsSync(sourceFile)) {
+                console.log(chalk.yellow(`⚠ Warning: Bin script '${binSource}' not found in package. Skipping.`));
+                continue;
+            }
+
+            // Create .cmd for Windows
+            const cmdShim = path.join(binDir, `${cmdName}.cmd`);
+            fs.writeFileSync(cmdShim, `@echo off\nnode "%~dp0..\\..\\AppData\\Roaming\\npm\\node_modules\\novascript\\dist\\main.js" run "${sourceFile}" %*`);
+            
+            // Create shell script for Unix
+            const shShim = path.join(binDir, cmdName);
+            fs.writeFileSync(shShim, `#!/bin/sh\nnode "$(dirname "$0")/../../AppData/Roaming/npm/node_modules/novascript/dist/main.js" run "${sourceFile}" "$@"\n`);
+            fs.chmodSync(shShim, 0o755);
+
+            // Also create a wrapper assuming nova is in PATH, which is more robust
+            const novaCmdShim = path.join(binDir, `${cmdName}-nova.cmd`);
+            fs.writeFileSync(novaCmdShim, `@echo off\nnova run "${sourceFile}" %*`);
+            
+            const novaShShim = path.join(binDir, `${cmdName}-nova`);
+            fs.writeFileSync(novaShShim, `#!/bin/sh\nnova run "${sourceFile}" "$@"\n`);
+            fs.chmodSync(novaShShim, 0o755);
+
+            console.log(chalk.green(`✔ Installed executable '${cmdName}' -> ${binDir}`));
+
+            // Override main shims to just use 'nova' to be safe
+            fs.writeFileSync(cmdShim, `@echo off\nnova run "${sourceFile}" %*`);
+            fs.writeFileSync(shShim, `#!/bin/sh\nnova run "${sourceFile}" "$@"\n`);
+            fs.chmodSync(shShim, 0o755);
+
+            installedCount++;
+        }
+
+        if (installedCount === 0) {
+            throw new Error(`No valid executables were installed.`);
+        }
+
+        console.log(chalk.cyan(`\n✨ Successfully installed ${installedCount} global tool(s) from ${modulePath}.`));
+        console.log(chalk.yellow(`Make sure ${binDir} is in your system PATH.`));
+    }
+
+    /**
      * Cleans the global library cache.
      */
     static clean() {

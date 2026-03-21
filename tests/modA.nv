@@ -1,0 +1,10 @@
+# tests/modA.nv
+import { b_val, say_hello } from "./modB.nv"
+
+print("b_val is: " + b_val)
+say_hello("NovaTester")
+
+let obj = { a: 1, b: null }
+print("obj?.a = " + obj?.a)
+print("obj?.b?.c = " + obj?.b?.c) # Should be null and not throw error
+print("Tests passed.")

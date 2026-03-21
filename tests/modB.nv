@@ -1,0 +1,5 @@
+# tests/modB.nv
+export let b_val = 42
+export fn say_hello(name) {
+    print("Hello from modB, " + name + "!")
+}

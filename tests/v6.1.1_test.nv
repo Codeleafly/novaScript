@@ -1,0 +1,58 @@
+# Verification Script for NovaScript v6.1.1
+
+print("--- Testing Optional Chaining ---")
+let obj = { a: { b: 10 } }
+let nullObj = null
+print("obj.a.b: " + str(obj.a.b)) # 10
+print("nullObj?.a: " + str(nullObj?.a)) # null
+print("nullObj?.a?.b: " + str(nullObj?.a?.b)) # null
+print("obj?.a?.b: " + str(obj?.a?.b)) # 10
+# Non-object optional chaining
+let myNum = 10
+print("num?.prop: " + str(myNum?.prop)) # null
+
+# Testing obj?.method()
+print("nullObj?.method(): " + str(nullObj?.method())) # should return null (no crash!)
+
+print("\n--- Testing JSON Module ---")
+let data = { name: "Nova", version: "6.1.1", items: [1, 2, 3] }
+let json = JSON.stringify(data)
+print("JSON.stringify: " + json)
+let parsed = JSON.parse(json)
+print("JSON.parse.name: " + parsed.name)
+
+print("\n--- Testing String Module ---")
+let s = "Hello NovaScript"
+print("startsWith('Hello'): " + str(String.startsWith(s, "Hello")))
+print("endsWith('Script'): " + str(String.endsWith(s, "Script")))
+print("padStart(20, '*'): " + String.padStart(s, 20, "*"))
+print("repeat(2): " + String.repeat("Hi ", 2))
+print("charAt(0): " + String.charAt(s, 0))
+
+print("\n--- Testing Array Module ---")
+let arr = [1, 2, 3, 4, 5]
+let mapped = Array.map(arr, (x) => x * 2)
+print("Array.map: " + str(mapped))
+let filtered = Array.filter(arr, (x) => x > 2)
+print("Array.filter: " + str(filtered))
+let sumValue = Array.reduce(arr, (acc, x) => acc + x, 0)
+print("Array.reduce (sum): " + str(sumValue))
+let foundItem = Array.find(arr, (x) => x > 3)
+print("Array.find (>3): " + str(foundItem))
+
+print("\n--- Testing Math Module ---")
+print("Math.inf: " + str(Math.inf))
+print("Math.nan: " + str(Math.nan))
+print("Math.trunc(10.5): " + str(Math.trunc(10.5)))
+print("Math.sign(-5): " + str(Math.sign(-5)))
+
+print("\n--- Testing Date Module ---")
+let now = Date.now()
+print("Date.format(now): " + Date.format(now, "YYYY-MM-DD HH:mm:ss"))
+let past = now - 3600000 # 1 hour ago
+print("Date.diff(now, past): " + str(Date.diff(now, past)))
+
+print("\n--- Testing Named Import ---")
+include { x, sayHi } from "./dummy_mod.nv"
+print("Imported x: " + str(x))
+print("Imported sayHi(): " + sayHi())

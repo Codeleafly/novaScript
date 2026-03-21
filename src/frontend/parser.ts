@@ -7,7 +7,7 @@ import {
     WhileStatement, MemberExpr, ObjectLiteral, Property, StringLiteral, 
     ReturnStatement, ArrayLiteral, ForStatement, ImportStatement, ImportExpr, NodeType,
     GlobalDeclaration, SwitchStatement, CaseStatement, TryCatchStatement, ThrowStatement,
-    BreakStatement, ContinueStatement, AwaitExpr
+    BreakStatement, ContinueStatement, AwaitExpr, ArrowFnExpr, ExportDeclaration, NamedImportStatement
 } from "./ast";
 import { tokenize, Token, TokenType } from "./lexer";
 import { NovaSyntaxError, ErrorLocation } from "../runtime/errors";
@@ -23,6 +23,10 @@ export default class Parser {
 
   private at(): Token {
     return this.tokens[0] as Token;
+  }
+
+  private peek(offset: number = 0): Token {
+      return (this.tokens[offset] || { type: TokenType.EOF, value: "EOF" }) as Token;
   }
 
   private eat(): Token {
@@ -111,6 +115,14 @@ export default class Parser {
         return this.parse_continue_statement();
       case TokenType.OpenBrace:
           return this.parse_block();
+      case TokenType.Export:
+          return this.parse_export_declaration();
+      case TokenType.Include:
+          // Handle include as statement if at statement level (import "mod" form)
+          if (this.peek(1).type === TokenType.OpenBrace) {
+              return this.parse_named_import();
+          }
+          // fallthrough to expression
       default:
         return this.parse_expression();
     }
@@ -147,15 +159,35 @@ export default class Parser {
       const forToken = this.eat();
       const hasParen = this.at().type === TokenType.OpenParen;
       if (hasParen) this.eat();
-      const identifier = this.expect(TokenType.Identifier, "Expected identifier in for loop").value;
-      this.expect(TokenType.From, "Expected 'from' in for loop");
-      const start = this.parse_expression();
-      this.expect(TokenType.To, "Expected 'to' in for loop");
-      const end = this.parse_expression();
-      if (hasParen) this.expect(TokenType.CloseParen, "Expected ) after for range");
-      const bodyNode = this.parse_statement();
-      const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
-      return { kind: "ForStatement", counter: identifier, start, end, body, line: forToken.line, column: forToken.column } as ForStatement;
+
+      // Determine style: Nova-style "for i from 0 to 10" vs JS-style "for (let i=0; i<10; i++)"
+      const isNovaStyle = this.at().type === TokenType.Identifier && this.peek(1).type === TokenType.From;
+
+      if (isNovaStyle) {
+          const identifier = this.expect(TokenType.Identifier, "Expected identifier in for loop").value;
+          this.expect(TokenType.From, "Expected 'from' in for loop");
+          const start = this.parse_expression();
+          this.expect(TokenType.To, "Expected 'to' in for loop");
+          const end = this.parse_expression();
+          if (hasParen) this.expect(TokenType.CloseParen, "Expected ) after for range");
+          const bodyNode = this.parse_statement();
+          const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
+          return { kind: "ForStatement", counter: identifier, start, end, body, line: forToken.line, column: forToken.column } as ForStatement;
+      } else {
+          // JS-style: for (init; condition; update)
+          const init = this.at().type === TokenType.SemiColon ? undefined : this.parse_statement();
+          this.expect(TokenType.SemiColon, "Expected ; after for init");
+          
+          const condition = this.at().type === TokenType.SemiColon ? undefined : this.parse_expression();
+          this.expect(TokenType.SemiColon, "Expected ; after for condition");
+          
+          const update = (hasParen ? this.at().type === TokenType.CloseParen : false) ? undefined : this.parse_expression();
+          if (hasParen) this.expect(TokenType.CloseParen, "Expected ) after for header");
+          
+          const bodyNode = this.parse_statement();
+          const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
+          return { kind: "ForStatement", init, condition, update, body, line: forToken.line, column: forToken.column } as ForStatement;
+      }
   }
 
   private parse_if_statement(): Statement {
@@ -314,7 +346,7 @@ export default class Parser {
   }
 
   private parse_assignment_expr(): Expression {
-    const left = this.parse_object_expr();
+    const left = this.parse_null_coalesce_expr();
     if (this.at().type === TokenType.Assign || this.at().type === TokenType.PlusEquals || this.at().type === TokenType.MinusEquals) {
       const opToken = this.eat();
       const value = this.parse_assignment_expr();
@@ -331,21 +363,40 @@ export default class Parser {
     return left;
   }
 
+  private parse_null_coalesce_expr(): Expression {
+      let left = this.parse_object_expr();
+      while (this.at().type === TokenType.NullCoalesce) {
+          const opToken = this.eat();
+          const right = this.parse_object_expr();
+          left = { kind: "BinaryExpr", left, right, operator: "??", line: opToken.line, column: opToken.column } as BinaryExpr;
+      }
+      return left;
+  }
+
   private parse_object_expr(): Expression {
       if (this.at().type !== TokenType.OpenBrace) return this.parse_logical_or_expr();
-      const openBrace = this.eat();
+      const openBrace = this.eat(); // {
       const properties: Property[] = [];
+
       while (this.not_eof() && this.at().type !== TokenType.CloseBrace) {
-          const keyToken = this.expect(TokenType.Identifier, "Object key expected.");
-          const key = keyToken.value;
-          let value: Expression | undefined;
-          if (this.at().type === TokenType.Assign) {
-              this.eat();
-              value = this.parse_expression();
+          // Key can be Identifier or String
+          const keyToken = this.eat();
+          if (keyToken.type !== TokenType.Identifier && keyToken.type !== TokenType.String) {
+              throw new NovaSyntaxError("Object key must be identifier or string", this.getLocation(keyToken));
           }
+          const key = keyToken.value;
+
+          // Support ':' or '=' separator
+          if (this.at().type !== TokenType.Colon && this.at().type !== TokenType.Assign) {
+              throw new NovaSyntaxError("Expected : or = after object key", this.getLocation(this.at()));
+          }
+          this.eat(); // consume : or =
+
+          const value = this.parse_expression();
           properties.push({ kind: "Property", key, value, line: keyToken.line, column: keyToken.column });
-          if (this.at().type !== TokenType.CloseBrace) {
-              this.expect(TokenType.Comma, "Expected comma or closing brace.");
+
+          if (this.at().type === TokenType.Comma) {
+              this.eat();
           }
       }
       this.expect(TokenType.CloseBrace, "Object literal missing closing brace.");
@@ -503,12 +554,13 @@ export default class Parser {
 
   private parse_member_expr(): Expression {
       let object = this.parse_primary_expr();
-      while (this.at().type === TokenType.Dot || this.at().type === TokenType.OpenBracket) {
+      while (this.at().type === TokenType.Dot || this.at().type === TokenType.OpenBracket || this.at().type === TokenType.OptionalChain) {
           const operator = this.eat();
           let property: Expression;
           let computed: boolean;
+          let optional = operator.type === TokenType.OptionalChain;
 
-          if (operator.type === TokenType.Dot) {
+          if (operator.type === TokenType.Dot || operator.type === TokenType.OptionalChain) {
               computed = false;
               property = this.parse_primary_expr();
               if (property.kind !== "Identifier") {
@@ -520,7 +572,7 @@ export default class Parser {
               this.expect(TokenType.CloseBracket, "Missing closing bracket in computed property.");
           }
 
-          object = { kind: "MemberExpr", object, property, computed, line: operator.line, column: operator.column } as MemberExpr;
+          object = { kind: "MemberExpr", object, property, computed, optional, line: operator.line, column: operator.column } as MemberExpr;
       }
       return object;
   }
@@ -540,6 +592,13 @@ export default class Parser {
     const tk = this.at();
     switch (tk.type) {
       case TokenType.Identifier:
+        // Lookahead for single-param arrow function: x => x * 2
+        if (this.peek(1).type === TokenType.Arrow) {
+            const param = this.eat().value;
+            this.eat(); // consume =>
+            const body = this.at().type === TokenType.OpenBrace ? (this.parse_block() as any).body : this.parse_expression();
+            return { kind: "ArrowFnExpr", parameters: [param], body, async: false, line: tk.line, column: tk.column } as ArrowFnExpr;
+        }
         return { kind: "Identifier", symbol: this.eat().value, line: tk.line, column: tk.column } as Identifier;
       case TokenType.Number:
         return { kind: "NumericLiteral", value: parseFloat(this.eat().value), line: tk.line, column: tk.column } as NumericLiteral;
@@ -548,22 +607,73 @@ export default class Parser {
       case TokenType.Include:
           const includeToken = this.eat();
           this.expect(TokenType.OpenParen, "Expected ( after include keyword.");
-          const moduleToken = this.expect(TokenType.String, "Expected string module name in include().");
+          const moduleExpr = this.parse_expression();
           this.expect(TokenType.CloseParen, "Expected ) after module name in include().");
-          return { kind: "ImportExpr", moduleName: moduleToken.value, line: includeToken.line, column: includeToken.column } as ImportExpr;
+          return { kind: "ImportExpr", moduleName: moduleExpr, line: includeToken.line, column: includeToken.column } as ImportExpr;
       case TokenType.OpenParen: {
-        this.eat();
+        // Lookahead for multi-param arrow function: (a, b) => ...
+        let i = 1;
+        while (this.peek(i).type !== TokenType.EOF && this.peek(i).type !== TokenType.CloseParen) {
+            i++;
+        }
+        if (this.peek(i).type === TokenType.CloseParen && this.peek(i+1).type === TokenType.Arrow) {
+            this.eat(); // (
+            const params: string[] = [];
+            while (this.at().type !== TokenType.CloseParen) {
+                params.push(this.expect(TokenType.Identifier, "Expected identifier in arrow function parameters").value);
+                if (this.at().type === TokenType.Comma) this.eat();
+            }
+            this.eat(); // )
+            this.eat(); // =>
+            const body = this.at().type === TokenType.OpenBrace ? (this.parse_block() as any).body : this.parse_expression();
+            return { kind: "ArrowFnExpr", parameters: params, body, async: false, line: tk.line, column: tk.column } as ArrowFnExpr;
+        }
+
+        this.eat(); // (
         const value = this.parse_expression();
         this.expect(TokenType.CloseParen, "Expected closing parenthesis.");
         return value;
       }
       case TokenType.OpenBracket:
           return this.parse_array_expr();
+      case TokenType.OpenBrace:
+          return this.parse_object_expr();
       default:
         throw new NovaSyntaxError(`Unexpected token found: ${tk.value}`, this.getLocation(tk));
     }
   }
   
+  private parse_export_declaration(): Statement {
+      const exportToken = this.eat(); // 'export'
+      const declaration = this.parse_statement();
+      
+      // Ensure it's a valid exportable statement (let, const, fn)
+      if (declaration.kind !== "VarDeclaration" && declaration.kind !== "FunctionDeclaration") {
+          throw new NovaSyntaxError(`Only variables and functions can be exported directly.`, this.getLocation(exportToken));
+      }
+
+      return { kind: "ExportDeclaration", declaration, line: exportToken.line, column: exportToken.column } as ExportDeclaration;
+  }
+
+  private parse_named_import(): Statement {
+      const importToken = this.eat(); // 'include' or 'import'
+      this.expect(TokenType.OpenBrace, "Expected { for named imports.");
+      
+      const imports: string[] = [];
+      while (this.at().type !== TokenType.CloseBrace && this.not_eof()) {
+          const id = this.expect(TokenType.Identifier, "Expected identifier in named import").value;
+          imports.push(id);
+          if (this.at().type === TokenType.Comma) {
+              this.eat();
+          }
+      }
+      this.expect(TokenType.CloseBrace, "Expected } after named imports.");
+      this.expect(TokenType.From, "Expected 'from' after named imports.");
+      const moduleStr = this.expect(TokenType.String, "Expected module string after 'from'.").value;
+      
+      return { kind: "NamedImportStatement", imports, moduleName: moduleStr, line: importToken.line, column: importToken.column } as NamedImportStatement;
+  }
+
   private is_start_of_expression(type: TokenType): boolean {
       return type === TokenType.Identifier || type === TokenType.Number || type === TokenType.String || 
              type === TokenType.OpenParen || type === TokenType.OpenBrace || type === TokenType.OpenBracket || 

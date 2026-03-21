@@ -28,7 +28,10 @@ export type NodeType =
   | "StringLiteral"
   | "ObjectLiteral"
   | "Property"
-  | "ArrayLiteral";
+  | "ArrayLiteral"
+  | "ArrowFnExpr"
+  | "ExportDeclaration"
+  | "NamedImportStatement";
 
 export interface Statement {
   kind: NodeType;
@@ -79,9 +82,15 @@ export interface WhileStatement extends Statement {
 
 export interface ForStatement extends Statement {
     kind: "ForStatement";
-    counter: string;
-    start: Expression;
-    end: Expression;
+    // Nova-style
+    counter?: string;
+    start?: Expression;
+    end?: Expression;
+    // JS-style
+    init?: Statement;
+    condition?: Expression;
+    update?: Expression;
+    
     body: Statement[];
 }
 
@@ -129,9 +138,20 @@ export interface ImportStatement extends Statement {
     moduleName: string;
 }
 
+export interface NamedImportStatement extends Statement {
+    kind: "NamedImportStatement";
+    imports: string[];     // names to import, e.g. ["x", "y"]
+    moduleName: string;    // the source module
+}
+
 export interface ImportExpr extends Expression {
     kind: "ImportExpr";
-    moduleName: string;
+    moduleName: Expression;
+}
+
+export interface ExportDeclaration extends Statement {
+    kind: "ExportDeclaration";
+    declaration: Statement; // the var/const/fn being exported
 }
 
 export interface Expression extends Statement {}
@@ -160,6 +180,7 @@ export interface MemberExpr extends Expression {
   object: Expression;
   property: Expression; // Identifier or String
   computed: boolean; // if true, object[property]. if false, object.property
+  optional: boolean; // if true, object?.property
 }
 
 export interface AwaitExpr extends Expression {
@@ -196,4 +217,11 @@ export interface ObjectLiteral extends Expression {
 export interface ArrayLiteral extends Expression {
   kind: "ArrayLiteral";
   elements: Expression[];
+}
+
+export interface ArrowFnExpr extends Expression {
+  kind: "ArrowFnExpr";
+  parameters: string[];
+  body: Statement[] | Expression;
+  async: boolean;
 }
