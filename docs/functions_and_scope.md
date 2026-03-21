@@ -15,6 +15,19 @@ fn greet(name) {
 print(greet("Nova"))
 ```
 
+## Anonymous Functions (v6.1.1+)
+NovaScript allows `fn` to be used as an expression without an identifier, perfect for clean callback definitions and assigning functions to variables or object properties.
+
+```novascript
+let operate = fn(a, b) {
+    return a + b
+}
+
+let result = doMath(fn(x, y) {
+    return x * y
+})
+```
+
 ## Arrow Functions (v6.0.0+)
 NovaScript v6 aggressively supports Arrow Functions natively bridging seamless lambda flows, notably inside array iterations and callbacks. 
 Curly blocks are optional for single-statement logical paths!

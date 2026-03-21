@@ -1,0 +1,30 @@
+print("Testing Method Chaining...")
+let obj = {
+    a: fn() {
+        return {
+            b: fn() {
+                return {
+                    c: fn() {
+                        return "Method Chaining Works!"
+                    }
+                }
+            }
+        }
+    }
+}
+
+print(obj.a().b().c())
+
+print("Testing Anonymous Functions...")
+fn doMath(callback) {
+    return callback(10, 5)
+}
+
+let res = doMath(fn(x, y) {
+    return x * y
+})
+print("Result of anonymous callback (10 * 5):", res)
+
+print("Testing Optional Chaining combined with Method Chaining...")
+let nullableObj = null
+print(nullableObj?.a()?.b())

@@ -217,6 +217,10 @@ function eval_function_declaration(
     async: declaration.async,
   } as FunctionVal;
 
+  if (declaration.name === "anonymous") {
+      return fn;
+  }
+
   return env.declareVar(declaration.name, fn, true);
 }
 

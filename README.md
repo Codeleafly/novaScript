@@ -8,8 +8,9 @@ NovaScript is an English-like, developer-ergonomic programming language built na
 - **Decentralized Dependencies module**: Directly `import { library } from "npm:axios"` or `"github:user/repo"`. Everything caches once explicitly globally within `~/.nova_libs/`.
 - **Global Tool Pipelines**: Expose binaries using `nova install -g npm:your-tool`.
 - **Exhaustive Native APIs**: Fully stocked built-in layers including `Sys`, `Math`, `FS`, `HTTP`, `Date`, `Regex`, `Base64`, `Console`, and `Net`.
-- **Syntactic Sugar**: Seamless optional chaining (`x?.y`), nullish coalescing (`a ?? b`), default logical aliases (`and`, `or`, `not`, `is`, `isnt`).
+- **Syntactic Sugar & Fluid APIs**: Unlimited method chaining (`a().b().c()`), seamless optional chaining (`x?.y()`), nullish coalescing (`a ?? b`), and default logical aliases (`and`, `or`, `not`, `is`, `isnt`).
 - **Data Primitives**: Powerful String and Array inline methods (`.map`, `.filter`, `.reduce`), natively bridging JavaScript object concepts gracefully.
+- **First-class Functions**: Anonymous functions natively supported as expressions or callbacks (`fn(x) { return x * 2 }`), alongside Arrow functions.
 - **Async Execution**: `async`/`await` support out of the box handling deeply threaded Node logic.
 
 ---

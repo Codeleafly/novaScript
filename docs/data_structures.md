@@ -64,6 +64,26 @@ let keyTarget = "access-token"
 print(userMap[keyTarget])
 ```
 
+## Advanced Chaining & Optional Access (v6.1.1+)
+Starting with v6.1.1, NovaScript supports completely unrestricted method and property chaining, letting you mix arrays, objects, and function calls gracefully.
+
+```novascript
+let payload = {
+    data: fn() {
+        return [
+            { id: 1, getMeta: fn() { return "Meta1" } }
+        ]
+    }
+}
+
+# Unlimited method chaining and indexing works recursively
+print(payload.data()[0].getMeta())
+
+# Safely chain using optional operator
+print(payload?.missing?.method?()) # returns null safely instead of exploding
+```
+
+
 ## JSON Casting
 - `parseJson(jsonString)` is injected as a global utility resolving native JavaScript JSON strings immediately to NovaScript Record definitions without requiring `import`s!
 - Overwhelmingly simplifies configurations immediately fetched across `HTTP.get()`.

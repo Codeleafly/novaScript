@@ -530,11 +530,21 @@ export default class Parser {
   }
 
   private parse_call_member_expr(): Expression {
-      const member = this.parse_member_expr();
-      if (this.at().type === TokenType.OpenParen) {
-          return this.parse_call_expr(member);
+      let object = this.parse_primary_expr();
+      
+      while (
+          this.at().type === TokenType.OpenParen || 
+          this.at().type === TokenType.Dot || 
+          this.at().type === TokenType.OpenBracket || 
+          this.at().type === TokenType.OptionalChain
+      ) {
+          if (this.at().type === TokenType.OpenParen) {
+              object = this.parse_call_expr(object);
+          } else {
+              object = this.parse_member_expr_step(object);
+          }
       }
-      return member;
+      return object;
   }
 
   private parse_call_expr(caller: Expression): Expression {
@@ -552,29 +562,25 @@ export default class Parser {
       return args;
   }
 
-  private parse_member_expr(): Expression {
-      let object = this.parse_primary_expr();
-      while (this.at().type === TokenType.Dot || this.at().type === TokenType.OpenBracket || this.at().type === TokenType.OptionalChain) {
-          const operator = this.eat();
-          let property: Expression;
-          let computed: boolean;
-          let optional = operator.type === TokenType.OptionalChain;
+  private parse_member_expr_step(object: Expression): Expression {
+      const operator = this.eat();
+      let property: Expression;
+      let computed: boolean;
+      let optional = operator.type === TokenType.OptionalChain;
 
-          if (operator.type === TokenType.Dot || operator.type === TokenType.OptionalChain) {
-              computed = false;
-              property = this.parse_primary_expr();
-              if (property.kind !== "Identifier") {
-                  throw new NovaSyntaxError("Cannot use dot operator without identifier.", this.getLocation(this.at()));
-              }
-          } else {
-              computed = true;
-              property = this.parse_expression();
-              this.expect(TokenType.CloseBracket, "Missing closing bracket in computed property.");
+      if (operator.type === TokenType.Dot || operator.type === TokenType.OptionalChain) {
+          computed = false;
+          property = this.parse_primary_expr();
+          if (property.kind !== "Identifier") {
+              throw new NovaSyntaxError("Cannot use dot operator without identifier.", this.getLocation(this.at()));
           }
-
-          object = { kind: "MemberExpr", object, property, computed, optional, line: operator.line, column: operator.column } as MemberExpr;
+      } else {
+          computed = true;
+          property = this.parse_expression();
+          this.expect(TokenType.CloseBracket, "Missing closing bracket in computed property.");
       }
-      return object;
+
+      return { kind: "MemberExpr", object, property, computed, optional, line: operator.line, column: operator.column } as MemberExpr;
   }
 
   private parse_array_expr(): Expression {
@@ -638,6 +644,13 @@ export default class Parser {
           return this.parse_array_expr();
       case TokenType.OpenBrace:
           return this.parse_object_expr();
+      case TokenType.Async:
+          if (this.peek(1).type === TokenType.Fn) {
+              return this.parse_anonymous_function(true);
+          }
+          throw new NovaSyntaxError(`Unexpected token found: ${tk.value}`, this.getLocation(tk));
+      case TokenType.Fn:
+          return this.parse_anonymous_function(false);
       default:
         throw new NovaSyntaxError(`Unexpected token found: ${tk.value}`, this.getLocation(tk));
     }
@@ -678,6 +691,25 @@ export default class Parser {
       return type === TokenType.Identifier || type === TokenType.Number || type === TokenType.String || 
              type === TokenType.OpenParen || type === TokenType.OpenBrace || type === TokenType.OpenBracket || 
              type === TokenType.Minus || type === TokenType.Not || type === TokenType.NotLogic || 
-             type === TokenType.Include || type === TokenType.Await;
+             type === TokenType.Include || type === TokenType.Await || type === TokenType.Fn || type === TokenType.Async;
+  }
+
+  private parse_anonymous_function(isAsync: boolean): Expression {
+      if (isAsync) this.eat(); // async
+      const fnToken = this.eat(); // fn
+      let name = "anonymous";
+      if (this.at().type === TokenType.Identifier) {
+          name = this.eat().value;
+      }
+      this.expect(TokenType.OpenParen, "Expected ( after function name");
+      const args: string[] = [];
+      while (this.at().type !== TokenType.CloseParen && this.not_eof()) {
+          args.push(this.expect(TokenType.Identifier, "Expected identifier in parameters").value);
+          if (this.at().type === TokenType.Comma) this.eat();
+      }
+      this.expect(TokenType.CloseParen, "Expected ) after function parameters");
+      const bodyNode = this.parse_statement();
+      const body = bodyNode.kind === "Program" ? (bodyNode as any).body : [bodyNode];
+      return { kind: "FunctionDeclaration", name, parameters: args, body, async: isAsync, line: fnToken.line, column: fnToken.column } as any;
   }
 }
