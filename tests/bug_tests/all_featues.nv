@@ -1,0 +1,288 @@
+# ========================
+# NovaScript Full Test Suite
+# ========================
+
+# ------------------------
+# Variables & Data Types
+# ------------------------
+let number = 42
+const pi = 3.14159
+global appName = "NovaScript"
+
+let strDouble = "Hello"
+let strSingle = 'World'
+let flagTrue = true
+let flagFalse = false
+let nothing = null
+let arr = [1, "two", true, null]
+let obj = { name = "Nova", "complex-key": "value" }
+
+print("Variables initialized:", number, pi, appName, strDouble, strSingle, flagTrue, flagFalse, nothing, arr, obj)
+
+# ------------------------
+# Type Casting
+# ------------------------
+print("Cast to number:", num("123"))
+print("Cast to string:", str(456))
+print("Cast to boolean:", bool(0), bool(1), bool("text"))
+
+# ------------------------
+# Arithmetic & Operators
+# ------------------------
+let sum = 5 + 3
+let diff = 10 - 2
+let prod = 4 * 2
+let div = 8 / 2
+let mod = 9 % 4
+let exp = 2 ** 3
+print("Sum/Diff/Prod/Div/Mod/Exp:", sum, diff, prod, div, mod, exp)
+
+let x = 5
+x += 3
+x -= 2
+print("Assignment operators:", x)
+
+# ------------------------
+# Logical & Comparison
+# ------------------------
+let a = true
+let b = false
+print("Logical AND:", a and b)
+print("Logical OR:", a or b)
+print("Logical NOT:", not a)
+print("Equality / Inequality:", 5 is 5, 5 isnt 3)
+print("Relational:", 5 > 3, 5 < 10, 5 >= 5, 4 <= 5)
+
+# ------------------------
+# Optional chaining & Nullish coalescing
+# ------------------------
+let optionalObj = { inner = { value = 10 } }
+print("Optional chaining exists:", optionalObj?.inner?.value)
+print("Optional chaining missing:", optionalObj?.missing?.value)
+let nullable = null
+print("Nullish coalescing:", nullable ?? "default")
+
+# ------------------------
+# Control Flow
+# ------------------------
+let temp = 30
+if (temp > 25) {
+    print("Hot")
+} else {
+    print("Normal")
+}
+
+switch temp {
+    case 25 { print("Exact 25") }
+    case 30 { print("Exact 30") }
+    default { print("Other temp") }
+}
+
+# ------------------------
+# Loops
+# ------------------------
+for i from 1 to 3 {
+    print("Range-based for loop i:", i)
+}
+
+let nums = [1,2,3,4]
+for (let j = 0; j < nums.length; j = j + 1) {
+    print("C-style for loop j:", nums[j])
+}
+
+let k = 0
+while (k < 3) {
+    print("While loop k:", k)
+    k = k + 1
+}
+
+# ------------------------
+# Functions & Recursion
+# ------------------------
+fn greet(name) {
+    let n = name ?? "User"
+    return "Hello, " + n
+}
+print(greet("Nova"))
+
+let operate = fn(a, b) { return a + b }
+print("Anonymous function result:", operate(2,3))
+
+let square = x => x * x
+print("Arrow function square:", square(4))
+
+fn factorial(n) {
+    if (n is 0) { return 1 }
+    return n * factorial(n - 1)
+}
+print("Factorial 5:", factorial(5))
+
+# Closures
+fn makeCounter() {
+    let count = 0
+    return fn() {
+        count = count + 1
+        return count
+    }
+}
+let counter = makeCounter()
+print("Closure counter:", counter(), counter())
+
+# Async / Await
+async fn asyncData() {
+    return "Async Result"
+}
+async fn runAsync() {
+    let res = await asyncData()
+    print("Async fetched:", res)
+}
+runAsync()
+
+# ------------------------
+# Arrays
+# ------------------------
+let arrTest = [1,2,3,4,5]
+print("Original array:", arrTest)
+print("Push:", Array.push(arrTest, 6))
+print("Pop:", Array.pop(arrTest))
+print("Join:", Array.join(arrTest, "-"))
+print("Slice:", Array.slice(arrTest, 1,3))
+print("Reverse:", Array.reverse(arrTest))
+print("Includes:", Array.includes(arrTest, 3))
+print("IndexOf:", Array.indexOf(arrTest, 2))
+
+# High-order methods
+print("Map:", Array.map(arrTest, fn(x) { return x*2 }))
+print("Filter:", Array.filter(arrTest, fn(x) { return x > 2 }))
+print("Reduce:", Array.reduce(arrTest, fn(acc,x) { return acc + x }, 0))
+
+# ------------------------
+# Strings
+# ------------------------
+let strTest = "  NovaScript  "
+print("Upper:", String.upper(strTest))
+print("Lower:", String.lower(strTest))
+print("Trim:", String.trim(strTest))
+print("Includes:", String.includes(strTest, "Nova"))
+print("Slice:", String.slice(strTest, 2,6))
+print("IndexOf:", String.indexOf(strTest, "Script"))
+print("Repeat:", str("Ha").repeat(3))
+print("PadStart:", str("5").padStart(3,"0"))
+print("PadEnd:", str("5").padEnd(3,"0"))
+print("CharAt:", strTest.charAt(2))
+
+# ------------------------
+# Objects
+# ------------------------
+let config = { port = 8080, active = true }
+print("Object access:", config.port)
+let advancedDataset = { "X-Forwarded-For": "10.0.0.1", "Content-Type": "application/json", port = 8080 }
+print("Bracket access:", advancedDataset["X-Forwarded-For"])
+
+# ------------------------
+# JSON
+# ------------------------
+let jsonStr = '{"key": "value", "num": 123}'
+let parsed = parseJson(jsonStr)
+print("Parsed JSON:", parsed)
+print("Stringify JSON:", JSON.stringify(parsed))
+
+# ------------------------
+# Regex
+# ------------------------
+let logStr = "ERROR-201, ERROR-404, OK-200"
+print("Regex match:", Regex.match("ERROR-[0-9]{3}", logStr, "g"))
+print("Regex replace:", Regex.replace("[0-9]", "No3va5", "g"))
+
+# ------------------------
+# Math & Base64
+# ------------------------
+print("Math sqrt:", Math.sqrt(144))
+print("Math pi:", Math.pi)
+print("Math random:", Math.random())
+print("Base64 encode:", Base64.encode("Nova"))
+print("Base64 decode:", Base64.decode(Base64.encode("Nova")))
+
+# ------------------------
+# Sys (OS & environment)
+# ------------------------
+print("Platform:", Sys.platform)
+print("Architecture:", Sys.arch)
+print("Hostname:", Sys.hostname())
+print("Uptime:", Sys.uptime())
+print("Total memory:", Sys.totalmem())
+print("Free memory:", Sys.freemem())
+print("Environment PATH:", Sys.env("PATH"))
+
+# ------------------------
+# FS (File System)
+# ------------------------
+FS.write("./test.txt", "NovaScript Test")
+print("FS exists:", FS.exists("./test.txt"))
+print("FS read:", FS.read("./test.txt"))
+FS.append("./test.txt", "\nAppend Line")
+print("FS read after append:", FS.read("./test.txt"))
+FS.rename("./test.txt", "./test-renamed.txt")
+print("FS list current dir:", FS.list("."))
+FS.delete("./test-renamed.txt")
+print("FS exists after delete:", FS.exists("./test-renamed.txt"))
+
+# ------------------------
+# Node.js Core Modules
+# ------------------------
+import { readdirSync } from "node:fs"
+import { randomUUID } from "node:crypto"
+import { platform, cpus, freemem } from "node:os"
+import { join } from "node:path"
+import { EventEmitter } from "node:events"
+
+print("Node platform:", platform())
+print("CPU cores:", cpus().length)
+print("Free memory:", freemem())
+print("Random UUID:", randomUUID())
+
+let files = readdirSync(".")
+print("Directory files:", files)
+
+let bus = new EventEmitter()
+bus.on("test", fn(msg){ print("Event message:", msg) })
+bus.emit("test", "Hello Event")
+let fullPath = join(process.cwd(), "docs")
+print("Resolved path:", fullPath)
+
+# ------------------------
+# NPM Modules
+# ------------------------
+import { chalk } from "npm:chalk@5.2.0"
+import { axios } from "npm:axios"
+
+Console.error(chalk.red("NPM chalk test"))
+async fn fetchGitHub() {
+    let res = await axios.get("https://api.github.com")
+    print("GitHub status:", res.status)
+}
+fetchGitHub()
+
+# ------------------------
+# GitHub & HTTPS imports
+# ------------------------
+# These require actual remote URLs and may fail offline
+# import { mathHelper } from "github:user/nova-utils/src/math.nv"
+# import { data } from "https://raw.githubusercontent.com/user/project/main/config.json"
+
+# ------------------------
+# Advanced Tips
+# ------------------------
+# Functional inheritance / closure-based OOP
+fn createDrone(name) {
+    global battery = 100
+    return {
+        name = name,
+        fly = () => {
+            global battery = battery - 10
+            print(name + " flying! Battery:", battery)
+        }
+    }
+}
+let drone1 = createDrone("Eagle")
+drone1.fly()

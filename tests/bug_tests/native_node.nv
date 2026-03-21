@@ -1,0 +1,42 @@
+# Import Node.js FS module and Nova HTTP server
+import { readdirSync, statSync } from "node:fs"
+import { join, basename } from "node:path"
+
+# Create server
+let server = HTTP.createServer()
+
+# Handler to list directory contents
+server.get("/", fn(req, res) {
+    let queryPath = req.query?.path ?? "."  # Optional query parameter ?path=
+    let files = []
+
+    try {
+        files = readdirSync(queryPath)
+    } catch err {
+        res.send("Error reading directory: " + err, { "Content-Type": "text/plain" })
+        return
+    }
+
+    # Build HTML output
+    let html = "<html><body>"
+    html += "<h2>Directory Listing: " + queryPath + "</h2>"
+    html += "<ul>"
+
+    for file in files {
+        let fullPath = join(queryPath, file)
+        let info = statSync(fullPath)
+        if info.isDirectory() {
+            html += "<li>[DIR] <a href='/?path=" + fullPath + "'>" + file + "</a></li>"
+        } else {
+            html += "<li>[FILE] " + file + "</li>"
+        }
+    }
+
+    html += "</ul></body></html>"
+    res.send(html, { "Content-Type": "text/html" })
+})
+
+# Start listening on port 8080
+server.listen(8080)
+
+print("NovaScript File Explorer running at http://localhost:8080")

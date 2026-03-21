@@ -1,0 +1,53 @@
+let server = HTTP.createServer()
+
+# Helper to render directory listing
+fn renderDir(path) {
+    let files = FS.list(path)
+    let html = "<h2>Index of " + path + "</h2><ul>"
+
+    # Parent directory link
+    if (path != "/") {
+        let parent = Path.dirname(path)
+        html += "<li><a href='?path=" + parent + "'>..</a></li>"
+    }
+
+    files.forEach((file) => {
+        let fullPath = path + "/" + file
+
+        if (FS.isDir(fullPath)) {
+            html += "<li>📁 <a href='?path=" + fullPath + "'>" + file + "</a></li>"
+        } else {
+            html += "<li>📄 <a href='?file=" + fullPath + "'>" + file + "</a></li>"
+        }
+    })
+
+    html += "</ul>"
+    return html
+}
+
+# GET handler
+server.get("/", fn(req, res) {
+
+    let query = req?.query ?? {}
+
+    let path = query.path ?? "."
+    let file = query.file ?? null
+
+    # Serve file
+    if (file != null and FS.isFile(file)) {
+        let content = FS.read(file)
+        return res.send(content)
+    }
+
+    # Serve directory
+    if (FS.isDir(path)) {
+        let html = renderDir(path)
+        return res.send(html, { "Content-Type": "text/html" })
+    }
+
+    res.send("Not Found")
+})
+
+server.listen(8080)
+
+print("🚀 File Explorer running at http://localhost:8080")
