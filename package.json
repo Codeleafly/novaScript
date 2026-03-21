@@ -1,6 +1,6 @@
 {
   "name": "novascript",
-  "version": "6.1.1-dev",
+  "version": "6.1.1",
   "author": "Smart tell line",
   "description": "",
   "main": "dist/main.js",
