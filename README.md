@@ -1,151 +1,197 @@
-# NovaScript (v6.1.0-dev) - Zero Configuration, Infinite Connectivity!
+# NovaScript (v6.1.1)
+**Zero Configuration, Infinite Connectivity!**
 
-NovaScript is an English-like programming language built for "Zero Configuration" development. Now updated to v6.1.0-dev, it features a decentralized global import engine, global tool installations, modern ES6-style exports, optional chaining (`?.`), and beautiful terminal diagnostics!
+NovaScript is an English-like, developer-ergonomic programming language built natively for script simplicity without sacrificing structural capability. Moving securely onto the `v6.1.1` engine, NovaScript incorporates a **Decentralized Global Import Engine**, optional chaining (`?.`), deeply unified data collection functions, and a comprehensive Native Standard Library—rendering the requirement of a `package.json` utterly redundant.
 
-## Core Features (v6.1.0-dev)
+## ✨ Core Features
 
-- **Decentralized Global Import Engine:** Import from `npm:`, `github:`, `https:`, and `node:` directly.
-- **Global Tools Installation:** Easily install global CLI tools via `nova install -g npm:my-tool`.
-- **Beautiful Error Diagnostics:** Premium developer experience with stylized, context-rich error reporting using Boxen.
-- **Optional Chaining (`?.`):** Safely access nested object properties.
-- **Modern Imports/Exports:** `import { x } from "mod"` and `export let x = 1` syntax natively supported.
-- **Zero Configuration:** No `node_modules`, no `package.json` for small projects, just run.
-- **Global Caching:** Dependencies are cached once in `~/.nova_libs/` and reused everywhere.
-- **Async/Await:** Powerful asynchronous programming model for non-blocking operations.
-- **Error Handling:** Robust `try`, `catch`, `finally`, and `throw` statements.
-- **Hybrid Syntax:** Uses `{}` for blocks, `()` for expressions and function calls.
-- **English Keywords:** `is` (==), `isnt` (!=), `and`, `or`, `not`, `let`, `fn`, `if`, `else`, `while`, `for`, `from`, `to`, `return`, `include`.
-- **Expanded Operators:** Arithmetical (`**`, `%`), Logical (`&&`, `||`, `!`), Bitwise (`&`, `|`, `^`, `<<`, `>>`), and Assignment (`+=`, `-=`).
-- **Massive Standard Library:** Built-in `Math`, `Sys`, `FS`, `HTTP`, `JSON`, `String`, `Array`, `Regex`, `Date`, `Base64`, and `Console`!
-- **Friendly Errors:** Clear error messages natively trace exact file names seamlessly across module trees.
+- **Decentralized Dependencies module**: Directly `import { library } from "npm:axios"` or `"github:user/repo"`. Everything caches once explicitly globally within `~/.nova_libs/`.
+- **Global Tool Pipelines**: Expose binaries using `nova install -g npm:your-tool`.
+- **Exhaustive Native APIs**: Fully stocked built-in layers including `Sys`, `Math`, `FS`, `HTTP`, `Date`, `Regex`, `Base64`, `Console`, and `Net`.
+- **Syntactic Sugar**: Seamless optional chaining (`x?.y`), nullish coalescing (`a ?? b`), default logical aliases (`and`, `or`, `not`, `is`, `isnt`).
+- **Data Primitives**: Powerful String and Array inline methods (`.map`, `.filter`, `.reduce`), natively bridging JavaScript object concepts gracefully.
+- **Async Execution**: `async`/`await` support out of the box handling deeply threaded Node logic.
 
-## 📚 Documentation
-Check the `docs/` folder for comprehensive documentation on usage:
-- [Basics & Syntax](docs/basics.md)
-- [Standard Library Guide](docs/standard-library.md)
+---
 
-## Syntax Examples
+## 🌟 Feature Examples Showcase
 
-### Variables
+### 1. Node.js Core Modules (`node:`)
+Direct mapping to native Node.js backend internals freely. Every core module is supported natively!
 ```novascript
-let x = 10
-const pi = 3.14
+import { readdirSync } from "node:fs"
+import { randomUUID, randomBytes } from "node:crypto"
+import { platform, cpus, freemem } from "node:os"
+import { execSync } from "node:child_process"
+import { join } from "node:path"
+import { EventEmitter } from "node:events"
+
+# Example 1: OS Statistics
+print("Running on:", platform(), "| Cores:", cpus().length)
+
+# Example 2: Hardware Memory
+print("Free Machine Memory:", freemem())
+
+# Example 3: Cryptography
+print("Secure UUID:", randomUUID())
+print("Random Bytes:", randomBytes(4).toString("hex"))
+
+# Example 4: Direct Node.js FileSystem bypass
+let files = readdirSync(".")
+print("Root Directory Files:", files)
+
+# Example 5: Spawning native host processes
+let sysDetails = execSync("node -v").toString().trim()
+print("Host Node Version:", sysDetails)
+
+# Example 6: Path resolutions
+let fullPath = join(process.cwd(), "docs", "modules.md")
+print("Resolved Core Path:", fullPath)
+
+# Example 7: Utilizing Node Event Emitters natively
+let bus = new EventEmitter()
+bus.on("auth", fn(user) { print("Authenticated User:", user) })
+bus.emit("auth", "Admin")
 ```
 
-### Functions & Exports
+### 2. NPM Imports (`npm:`)
+Instantly use any NPM package without a `package.json` or `node_modules` folder. NovaScript caches it globally on the first run.
 ```novascript
-export fn greet(name) {
-    print("Hello", name)
-}
+# Imports Chalk and Axios instantly
+import { chalk } from "npm:chalk@5.2.0"
+import { axios } from "npm:axios"
 
-export let pi = 3.14
-
-// In another file:
-import { greet, pi } from "./my_module.nv"
-greet("User")
+let res = await axios.get("https://api.github.com")
+print(chalk.green("GitHub API Status: " + res.status))
 ```
 
-### Optional Chaining & Objects
+### 3. GitHub Imports (`github:`)
+Load and execute NovaScript utilities directly from remote raw GitHub repositories!
 ```novascript
-let user = { profile: { details: { age: 25 } } }
+# Directly fetch a module from a public repo
+import { mathHelper } from "github:user/nova-utils/src/math.nv"
 
-// Safely access without throwing ReferenceError
-let age = user?.profile?.details?.age
-let oops = user?.missingProperty?.value
-
-print("Age:", age)
-print("Oops:", oops) // null
+print("Remote execution:", mathHelper.add(5, 5))
 ```
 
-### Control Flow
+### 4. URL Imports (`https://`)
+Execute code seamlessly passing across strict remote web servers (similar to Deno).
 ```novascript
-if (age is 18) {
-    print("Welcome!")
-} else {
-    print("Access denied.")
-}
-
-switch status {
-    case "success" { print("Done!") }
-    case "error"   { print("Failed!") }
-    default        { print("Pending...") }
-}
-
-while (count < 5) {
-    print(count)
-    if (count == 2) { continue }
-    if (count == 4) { break }
-    count = count + 1
-}
-
-for i from 1 to 10 {
-    print(i)
-}
+# Importing a JSON mapping or a library directly from a URL
+import { data } from "https://raw.githubusercontent.com/user/project/main/config.json"
+print("Fetched Config:", data.port)
 ```
 
-### Async & Error Handling
+### 5. Local 'Lib' Modules & Exports (`./`)
+You can use the modern `export` keyword, or dynamically bind strictly to the `exports` object!
 ```novascript
-async fn fetchData() {
-    print("Fetching...")
-    return "Data"
+# --- mathLib.nv ---
+fn multiply(a, b) { 
+    return a * b 
 }
+exports.multiply = multiply # Dynamic exporting!
+exports.libName = "MathLibrary"
 
-try {
-    let result = await fetchData()
-    print("Result:", result)
-    throw "Oops!"
-} catch err {
-    print("Caught:", err)
-} finally {
-    print("Finished.")
-}
+# --- main.nv ---
+import { multiply, libName } from "./mathLib.nv"
+print("Using " + libName + ":", multiply(10, 2))
 ```
 
-### Standard Library Usage
+### 6. Built-in Functions & Advanced APIs
+NovaScript hides massive internal libraries out of the box without needing external requests.
 ```novascript
-let root = Math.sqrt(16)
-print("Root:", root)
+# Interactive Input & URLs
+let name = input("Enter your username: ")
+openUrl("https://github.com/nova-script")
 
-let content = File.read("test.txt")
-print("Content:", content)
+# FileSystem, JSON, and File Watching (Hot Reload)
+let data = { user = name, active = true }
+FS.write("./user.json", JSON.stringify(data))
 
-print("Platform:", Sys.platform)
+watchFile("./user.json", fn() {
+    print("User config was updated live!")
+})
+
+# Math & OS Info
+print("Square Root of 144:", Math.sqrt(144))
+print("Operating System:", Sys.platform)
+
+# Regex & String parsing
+let sanitized = Regex.replace("[0-9]", "No3va5", "", "g")
+print("Sanitized:", sanitized) # "Nova"
 ```
 
-## 🚀 Running NovaScript
+---
 
-### CLI Commands
+## 📚 Official Documentation
+For exhaustive syntax boundaries and structural paradigms, traverse the complete multi-layered knowledge base inside the `docs/` directory:
+
+1. [**Basics & Syntax Rules (`docs/syntax.md`)**](docs/syntax.md)
+   - Variables (`let`, `const`) and Data Types
+   - English Logical Aliases (`is`, `isnt`, `and`, `or`)
+   - Control Flows (`if`, `switch`, `while`, `for`, `try/catch`)
+2. [**Functions & Scope (`docs/functions_and_scope.md`)**](docs/functions_and_scope.md)
+   - Defining and invoking routines
+   - Closures and lexical boundary propagation
+   - Concurrency loops (`async`/`await`)
+3. [**Data Structures (`docs/data_structures.md`)**](docs/data_structures.md)
+   - Advanced Array manipulation methods
+   - Internal String prototypes
+   - Objects and optional chaining logic
+4. [**Standard Library (`docs/standard_library.md`)**](docs/standard_library.md)
+   - Complete reference to `Math`, `Sys`, `FS`, `HTTP` webservers, utilities
+5. [**Modules & Imports (`docs/modules.md`)**](docs/modules.md)
+   - Decentralized package resolution (`npm:`, `github:`, `https:`)
+   - Exports binding techniques
+6. [**Advanced Tips & Tricks (`docs/advanced_tricks.md`)**](docs/advanced_tricks.md)
+   - ANSI styling, regex bridging, string-key objects, parser booting
+
+---
+
+## 🚀 Quick Start & CLI
+
+### Installation / REPL Start
 ```bash
-nova                  # Start the interactive REPL
-nova run script.nv    # Run a NovaScript file
-nova script.nv        # Shorthand run (backward compatible)
-nova install -g <src> # Install an executable tool globally (e.g., npm:boxen)
-nova get <source>     # Pre-fetch dependency (npm:, github:, https:)
-nova clean            # Clear the global library cache (~/.nova_libs)
-nova version          # Print current version
-nova help             # Print help
+# Starts the live multi-line interactive interpreter
+nova
 ```
 
-### Interactive REPL Commands
-Once inside the REPL:
+### Running Scripts
+```bash
+# Executes standard code interpretation against a target script
+nova run script.nv
+# Also natively falls back mapping to alias targets directly
+nova script.nv
 ```
+
+### Manage Global Cache
+```bash
+# Explicitly prefetches dependencies
+nova get npm:chalk
+
+# Generates executable system paths globally linking NPM packages
+nova install -g npm:express 
+
+# Wipe global library configuration cache maps
+nova clean 
+```
+
+### Interactive Editor Mode
+Once dynamically booted inside REPL:
+```text
 .help      → Show REPL commands
-.editor    → Multi-line editor mode (type .run to execute)
+.editor    → Enables multi-line raw string ingestion
+.reset     → Clears environment state and variables natively
 .clear     → Clear the screen
-.reset     → Reset all declared variables
 .exit      → Exit the REPL
 ```
-
-### Multi-Line Auto-Continuation
-The REPL automatically detects unclosed blocks and continues:
-```
-nova ❯ fn double(n) {
-  ...   return n * 2
+NovaScript handles open block strings gracefully. Example:
+```novascript
+nova ❯ for i from 1 to 3 {
+  ...   print("Auto-continue block step:", i)
   ... }
-  ⟵ [Function]
 ```
 
-## 📚 Documentation
-- [Basics & Syntax](docs/basics.md)
-- [Standard Library](docs/standard-library.md)
-- [REPL Usage Guide](docs/repl.md)
+## Status & License
+NovaScript operates dynamically atop modern V8 JavaScript boundaries. Code artifacts natively cross-compile internal abstractions into zero-dep binary strings securely. 
+See `LICENSE` inside the repository structure for deeper permission usage templates.
